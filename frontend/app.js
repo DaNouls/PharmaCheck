@@ -5,8 +5,44 @@
  */
 
 const API_BASE = 'http://localhost:8000';
+const AI_DAILY_LIMIT = 20;
 
 let compatMode = false;
+
+// ─────────────────────────────────────────
+// AI USAGE COUNTER
+// ─────────────────────────────────────────
+
+function getAiUsage() {
+  const today = new Date().toISOString().slice(0, 10);
+  const stored = JSON.parse(localStorage.getItem('ai_usage') || '{}');
+  if (stored.date !== today) return { date: today, used: 0 };
+  return stored;
+}
+
+function incrementAiUsage() {
+  const usage = getAiUsage();
+  usage.used = Math.min(usage.used + 1, AI_DAILY_LIMIT);
+  localStorage.setItem('ai_usage', JSON.stringify(usage));
+  renderAiCounter();
+}
+
+function renderAiCounter() {
+  const { used } = getAiUsage();
+  const remaining = AI_DAILY_LIMIT - used;
+  const pct = (remaining / AI_DAILY_LIMIT) * 100;
+
+  document.getElementById('ai-count').textContent = remaining;
+  document.getElementById('ai-bar-fill').style.width = pct + '%';
+
+  const el = document.getElementById('ai-counter');
+  el.classList.remove('low', 'empty');
+  if (remaining === 0) el.classList.add('empty');
+  else if (remaining <= 5) el.classList.add('low');
+}
+
+// Inicializar contador al cargar
+renderAiCounter();
 
 // ─────────────────────────────────────────
 // API CALLS
@@ -259,7 +295,7 @@ function renderGeminiReport(data) {
       ${altsHtml}
     </div>
 
-    ${sourcesHtml([...sources, { label: 'Gemini AI', url: 'https://deepmind.google/technologies/gemini/' }])}
+    ${sourcesHtml(sources)}
 
     <div class="card-footer">
       <button class="btn-secondary" onclick="resetToMain(true)">← Otro caso</button>
@@ -388,6 +424,7 @@ function toggleMode() {
   btn.classList.toggle('active', compatMode);
   btn.setAttribute('aria-pressed', compatMode);
   patientWrap.classList.toggle('visible', compatMode);
+  document.getElementById('input-row').classList.toggle('compat-active', compatMode);
 
   if (compatMode) {
     actionBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Análisis de concordancia`;
@@ -431,6 +468,7 @@ async function handleAction() {
 
     if (compatMode) {
       const geminiData = await apiGeminiCompatibility(medQuery, patientText, medQuery);
+      incrementAiUsage();
       html = renderGeminiReport(geminiData);
     } else {
       // Buscar en local y en OpenFDA en paralelo
