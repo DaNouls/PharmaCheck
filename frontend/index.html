@@ -12,15 +12,7 @@
 <!-- ══════════════ HEADER ══════════════ -->
 <header>
   <div class="logo-wrap">
-    <svg class="logo-svg" viewBox="0 0 160 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="10" width="34" height="24" rx="12" fill="#1a6abf"/>
-      <rect x="19" y="10" width="17" height="24" rx="0" fill="#0f4a8a"/>
-      <rect x="19" y="10" width="17" height="24" rx="12" fill="#0f4a8a"/>
-      <line x1="19" y1="10" x2="19" y2="34" stroke="white" stroke-width="1.5"/>
-      <text x="8" y="26" font-family="Arial" font-size="9" fill="white" font-weight="bold">Rx</text>
-      <text x="42" y="30" font-family="Arial" font-size="15" fill="#1a6abf" font-weight="800" letter-spacing="-0.3">insud</text>
-      <text x="93" y="30" font-family="Arial" font-size="15" fill="#0f4a8a" font-weight="800" letter-spacing="-0.3">PHARMA</text>
-    </svg>
+    <img class="logo-svg" src="https://www.insudpharma.com/wp-content/themes/insudpharma/images/Logo.png" alt="InsudPharma" />
   </div>
   <div class="header-divider"></div>
   <span class="header-title">PharmaCheck</span>
@@ -40,14 +32,14 @@
         <!-- Med input -->
         <div class="input-group has-label" id="med-group">
           <label>💊 Medicamento</label>
-          <input type="text" id="med-input" placeholder="Nombre del medicamento…" autocomplete="off"/>
+          <input type="text" id="med-input" placeholder="Nombre del medicamento" autocomplete="off"/>
         </div>
 
         <!-- Patient input (hidden by default) -->
         <div class="patient-input-wrap" id="patient-wrap">
           <div class="input-group has-label">
             <label>🧑‍⚕️ Información del paciente</label>
-            <textarea id="patient-input" placeholder="síntomas, receta, enfermedad; peso, altura, embarazo, alergias, edad…"></textarea>
+            <textarea id="patient-input" placeholder="síntomas, condiciones, edad, embarazo, alergias…"></textarea>
           </div>
         </div>
 
@@ -78,6 +70,13 @@
   <!-- Result Section -->
   <div id="result-section"></div>
 </main>
+
+<div class="ai-counter" id="ai-counter">
+  <span>✨ IA</span>
+  <span class="ai-count" id="ai-count">20</span>
+  <span style="color:var(--border)">/ 20</span>
+  <div class="ai-bar"><div class="ai-bar-fill" id="ai-bar-fill"></div></div>
+</div>
 
 <script src="app.js"></script>
 </body>
