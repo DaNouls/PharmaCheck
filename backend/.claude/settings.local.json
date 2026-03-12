@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m uvicorn --version 2>&1; which uvicorn 2>&1; pip show uvicorn 2>&1)",
+      "Bash(python3 -m uvicorn --version 2>&1; pip3 show uvicorn 2>&1)",
+      "Bash(pip3 install:*)"
+    ]
+  }
+}

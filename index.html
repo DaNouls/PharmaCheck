@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PharmaCheck — InsudPharma</title>
+<style>
+  :root {
+    --blue: #1a6abf;
+    --blue-light: #e8f0fb;
+    --blue-dark: #0f4a8a;
+    --green: #1db86a;
+    --green-light: #e6f9f0;
+    --red: #e03c31;
+    --red-light: #fdecea;
+    --orange: #f5a623;
+    --orange-light: #fff8ec;
+    --gray: #6b7280;
+    --gray-light: #f4f6f9;
+    --border: #d1d5db;
+    --text: #1a1f2e;
+    --white: #ffffff;
+    --shadow: 0 4px 24px rgba(26,106,191,0.10);
+    --radius: 14px;
+    --transition: 0.22s cubic-bezier(.4,0,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #f0f4ff 0%, #ffffff 60%, #e8f4fd 100%);
+    min-height: 100vh;
+    color: var(--text);
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--white);
+    box-shadow: 0 2px 12px rgba(26,106,191,0.08);
+    padding: 0 40px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+  }
+  .logo-svg { height: 38px; width: auto; }
+  .header-divider {
+    width: 1.5px;
+    height: 32px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+  .header-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--blue-dark), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* ── MAIN ── */
+  main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 54px 20px 80px;
+    min-height: calc(100vh - 70px);
+  }
+
+  /* ── HERO SECTION ── */
+  .hero {
+    text-align: center;
+    margin-bottom: 44px;
+  }
+  .hero h1 {
+    font-size: 2.1rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+  }
+  .hero p {
+    color: var(--gray);
+    font-size: 1.05rem;
+    max-width: 520px;
+    line-height: 1.6;
+  }
+
+  /* ── SEARCH AREA ── */
+  #search-area {
+    width: 100%;
+    max-width: 820px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    transition: var(--transition);
+  }
+
+  .input-group {
+    position: relative;
+    flex: 1;
+    transition: all var(--transition);
+  }
+  .input-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gray);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .input-group input, .input-group textarea {
+    width: 100%;
+    padding: 14px 18px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--white);
+    color: var(--text);
+    outline: none;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .input-group input:focus, .input-group textarea:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 4px rgba(26,106,191,0.12);
+  }
+  .input-group textarea {
+    resize: none;
+    height: 52px;
+    line-height: 1.4;
+  }
+
+  .input-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray);
+    pointer-events: none;
+  }
+  .has-label .input-icon { top: calc(50% + 10px); }
+
+  /* ── TOGGLE BUTTON ── */
+  .toggle-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .toggle-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--gray);
+    text-align: center;
+    max-width: 80px;
+    line-height: 1.3;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  #toggle-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    border: 2.5px solid #1a1f2e;
+    background: var(--white);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition);
+    font-size: 1.1rem;
+    color: transparent;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  #toggle-btn.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: var(--white);
+    box-shadow: 0 4px 16px rgba(26,106,191,0.35);
+  }
+  #toggle-btn svg { transition: opacity var(--transition); }
+  #toggle-btn:not(.active) svg { opacity: 0; }
+  #toggle-btn.active svg { opacity: 1; }
+
+  /* Patient input slide-in */
+  .patient-input-wrap {
+    overflow: hidden;
+    max-width: 0;
+    opacity: 0;
+    transition: max-width 0.4s cubic-bezier(.4,0,.2,1), opacity 0.3s;
+    flex-shrink: 0;
+  }
+  .patient-input-wrap.visible {
+    max-width: 400px;
+    opacity: 1;
+    flex: 1;
+  }
+  .patient-input-wrap .input-group { min-width: 260px; }
+
+  /* ── ACTION BUTTON ── */
+  #action-btn {
+    margin-top: 4px;
+    padding: 15px 40px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+    color: var(--white);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(26,106,191,0.28);
+    transition: all var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: 0.2px;
+  }
+  #action-btn:hover {
+    background: linear-gradient(135deg, var(--blue-dark), #09346a);
+    box-shadow: 0 6px 28px rgba(26,106,191,0.4);
+    transform: translateY(-1px);
+  }
+  #action-btn:active { transform: translateY(0); }
+
+  /* ── RESULTS ── */
+  #result-section { width: 100%; max-width: 860px; display: none; }
+
+  /* ── MEDICATION CARD (Mode 1) ── */
+  .med-card {
+    background: var(--white);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .med-card-header {
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+    padding: 36px 40px 28px;
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+  .med-icon-wrap {
+    width: 90px;
+    height: 90px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    flex-shrink: 0;
+    backdrop-filter: blur(4px);
+    border: 2px solid rgba(255,255,255,0.25);
+  }
+  .med-header-info h2 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .med-header-info .med-class {
+    font-size: 0.9rem;
+    opacity: 0.82;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+  .med-header-info .med-dosage {
+    margin-top: 10px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.88rem;
+    display: inline-block;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.28);
+  }
+
+  .med-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .med-section {
+    padding: 24px 28px;
+    border-right: 1px solid #f0f0f0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .med-section:nth-child(2n) { border-right: none; }
+  .med-section:nth-last-child(-n+2) { border-bottom: none; }
+  .med-section h3 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .med-section h3.blue { color: var(--blue); }
+  .med-section h3.red { color: var(--red); }
+  .med-section h3.orange { color: var(--orange); }
+  .med-section h3.green { color: var(--green); }
+  .med-section h3.gray { color: var(--gray); }
+  .med-section p, .med-section ul {
+    font-size: 0.92rem;
+    color: #374151;
+    line-height: 1.65;
+  }
+  .med-section ul { padding-left: 18px; }
+  .med-section ul li { margin-bottom: 4px; }
+
+  .fact-box {
+    grid-column: 1 / -1;
+    padding: 20px 28px;
+    background: linear-gradient(90deg, var(--blue-light), #f0f8ff);
+    border-top: 1px solid #d0e4fa;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .fact-box .fact-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 1px; }
+  .fact-box p { font-size: 0.9rem; color: var(--blue-dark); line-height: 1.6; }
+  .fact-box strong { font-weight: 700; }
+
+  /* ── COMPAT CARD (Mode 2) ── */
+  .compat-card {
+    background: var(--white);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    animation: fadeUp 0.4s ease;
+  }
+  .compat-header {
+    padding: 30px 36px 24px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .compat-header-left h2 { font-size: 1.5rem; font-weight: 800; }
+  .compat-header-left p { font-size: 0.9rem; color: var(--gray); margin-top: 4px; }
+  .verdict-badge {
+    padding: 10px 22px;
+    border-radius: 50px;
+    font-size: 0.92rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .verdict-badge.suitable { background: var(--green-light); color: #0d7a45; }
+  .verdict-badge.risky { background: var(--orange-light); color: #b36200; }
+  .verdict-badge.not-recommended { background: var(--red-light); color: var(--red); }
+  .verdict-badge.uncertain { background: #f3f4f6; color: var(--gray); }
+
+  .compat-sections { display: flex; flex-direction: column; gap: 0; }
+  .compat-section {
+    padding: 24px 36px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .compat-section:last-child { border-bottom: none; }
+  .compat-section h3 {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.7px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .compat-section h3.green { color: var(--green); }
+  .compat-section h3.red { color: var(--red); }
+  .compat-section h3.orange { color: var(--orange); }
+  .compat-section h3.blue { color: var(--blue); }
+  .compat-section h3.gray { color: var(--gray); }
+  .compat-section p { font-size: 0.93rem; line-height: 1.68; color: #374151; }
+
+  .suitability-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .suit-indicator {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .suit-indicator.green { background: var(--green); }
+  .suit-indicator.orange { background: var(--orange); }
+  .suit-indicator.red { background: var(--red); }
+  .suit-indicator.gray { background: var(--gray); }
+
+  /* Alternatives */
+  .alt-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .alt-pill {
+    padding: 7px 16px;
+    background: var(--blue-light);
+    color: var(--blue);
+    border-radius: 50px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1.5px solid #c5d9f5;
+    transition: all var(--transition);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .alt-pill:hover {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 12px rgba(26,106,191,0.25);
+  }
+
+  /* Sources */
+  .sources-bar {
+    padding: 16px 36px;
+    background: #f8faff;
+    border-top: 1px solid #e4ecfa;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sources-bar span { font-size: 0.75rem; color: var(--gray); font-weight: 600; }
+  .source-link {
+    font-size: 0.75rem;
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--blue-light);
+    transition: background var(--transition);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .source-link:hover { background: #c8ddf7; }
+
+  /* Bottom buttons */
+  .card-footer {
+    display: flex;
+    justify-content: center;
+    padding: 24px 36px;
+    background: var(--gray-light);
+    border-top: 1px solid var(--border);
+  }
+  .btn-secondary {
+    padding: 12px 32px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    background: var(--white);
+    color: var(--blue);
+    border: 2px solid var(--blue);
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .btn-secondary:hover {
+    background: var(--blue);
+    color: var(--white);
+  }
+
+  /* ── LOADING ── */
+  .loading-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 60px;
+    animation: fadeUp 0.3s ease;
+  }
+  .loading-wrap p { color: var(--gray); font-size: 0.95rem; }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 4px solid var(--blue-light);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ERROR ── */
+  .error-box {
+    background: var(--red-light);
+    border: 1.5px solid #f5bbb8;
+    border-radius: var(--radius);
+    padding: 16px 22px;
+    color: var(--red);
+    font-size: 0.93rem;
+    display: none;
+    animation: fadeUp 0.3s ease;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    header { padding: 0 20px; }
+    main { padding: 32px 14px 60px; }
+    .hero h1 { font-size: 1.5rem; }
+    .med-body { grid-template-columns: 1fr; }
+    .med-section:nth-child(2n) { border-right: none; }
+    .compat-header { flex-direction: column; align-items: flex-start; }
+    .med-card-header { flex-direction: column; text-align: center; }
+    .sources-bar { justify-content: center; }
+    .patient-input-wrap.visible { max-width: 100%; }
+    .input-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ HEADER ══════════════ -->
+<header>
+  <div class="logo-wrap">
+    <!-- InsudPharma logo SVG (color) -->
+    <svg class="logo-svg" viewBox="0 0 160 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Pill icon -->
+      <rect x="2" y="10" width="34" height="24" rx="12" fill="#1a6abf"/>
+      <rect x="19" y="10" width="17" height="24" rx="0" fill="#0f4a8a"/>
+      <rect x="19" y="10" width="17" height="24" rx="12" fill="#0f4a8a"/>
+      <line x1="19" y1="10" x2="19" y2="34" stroke="white" stroke-width="1.5"/>
+      <text x="8" y="26" font-family="Arial" font-size="9" fill="white" font-weight="bold">Rx</text>
+      <!-- "insud" text -->
+      <text x="42" y="30" font-family="Arial" font-size="15" fill="#1a6abf" font-weight="800" letter-spacing="-0.3">insud</text>
+      <!-- "PHARMA" text -->
+      <text x="93" y="30" font-family="Arial" font-size="15" fill="#0f4a8a" font-weight="800" letter-spacing="-0.3">PHARMA</text>
+    </svg>
+  </div>
+  <div class="header-divider"></div>
+  <span class="header-title">PharmaCheck</span>
+</header>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<main>
+  <!-- Initial Screen -->
+  <div id="initial-screen">
+    <div class="hero">
+      <h1>Evaluación de medicamentos</h1>
+      <p>Consulta la ficha técnica de cualquier fármaco o analiza su compatibilidad con un paciente en segundos.</p>
+    </div>
+
+    <div id="search-area">
+      <div class="input-row" id="input-row">
+        <!-- Med input -->
+        <div class="input-group has-label" id="med-group">
+          <label>💊 Medicamento</label>
+          <input type="text" id="med-input" placeholder="Nombre del medicamento…" autocomplete="off"/>
+        </div>
+
+        <!-- Patient input (hidden by default) -->
+        <div class="patient-input-wrap" id="patient-wrap">
+          <div class="input-group has-label">
+            <label>🧑‍⚕️ Información del paciente</label>
+            <textarea id="patient-input" placeholder="síntomas, receta, enfermedad; peso, altura, embarazo, alergias, edad…"></textarea>
+          </div>
+        </div>
+
+        <!-- Toggle -->
+        <div class="toggle-wrap">
+          <div class="toggle-label">Concordancia</div>
+          <button id="toggle-btn" title="Activar modo Concordancia de medicamento" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <polyline points="3,9 7,13 15,5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="error-box" id="error-box">Por favor ingresa el nombre de un medicamento.</div>
+
+      <button id="action-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14,2 14,8 20,8"/>
+        </svg>
+        Ficha de medicamento
+      </button>
+    </div>
+  </div>
+
+  <!-- Result Section -->
+  <div id="result-section"></div>
+</main>
+
+<!-- ══════════════ SCRIPT ══════════════ -->
+<script>
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let compatMode = false;
+
+// ─────────────────────────────────────────
+// MEDICATION DATABASE
+// ─────────────────────────────────────────
+const MEDS = {
+  paracetamol: {
+    name: 'Paracetamol',
+    aka: ['acetaminofén', 'acetaminophen', 'tylenol', 'gelocatil', 'efferalgan', 'termalgín'],
+    class: 'Analgésico / Antipirético',
+    emoji: '💊',
+    dosage: '500–1000 mg cada 6–8 h (máx 4 g/día)',
+    uses: 'Alivio del dolor leve a moderado (cefalea, dolor dental, muscular, articular), reducción de la fiebre. Primera línea en embarazo y niños.',
+    sideEffects: ['Raramente: reacciones cutáneas (urticaria)', 'Hepatotoxicidad con dosis elevadas o alcohol', 'Raramente: agranulocitosis'],
+    restrictions: ['Insuficiencia hepática severa', 'Alcoholismo crónico', 'Hipersensibilidad al paracetamol'],
+    notFor: ['Pacientes con daño hepático grave', 'No superar 4 g/día en adultos', 'No combinar con alcohol'],
+    fact: 'El paracetamol es uno de los analgésicos más prescritos del mundo. A pesar de su aparente inocuidad, es la principal causa de insuficiencia hepática aguda en países occidentales cuando se toma en sobredosis.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Acetaminophen' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00316' },
+      { label: 'AEMPS', url: 'https://cima.aemps.es' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'suitable', note: 'Es el analgésico de primera elección durante el embarazo cuando se usa a dosis mínimas efectivas y por el menor tiempo posible.' },
+      allergy_nsaid: { verdict: 'suitable', note: 'Buena alternativa para pacientes alérgicos a AINEs ya que no es un AINE.' },
+      gastric: { verdict: 'suitable', note: 'No irrita la mucosa gástrica; adecuado en pacientes con úlceras o gastritis.' },
+      renal: { verdict: 'suitable', note: 'Preferible a AINEs en insuficiencia renal leve-moderada. Ajustar dosis en insuficiencia severa.' },
+      hepatic: { verdict: 'not-recommended', note: 'Contraindicado o uso con extrema cautela en hepatopatía severa.' },
+      child: { verdict: 'suitable', note: 'Apto para niños con dosis ajustada al peso (10–15 mg/kg cada 6 h).' },
+      elderly: { verdict: 'suitable', note: 'Primera opción en ancianos; mejor perfil de seguridad cardiovascular y gastrointestinal que AINEs.' },
+      alternatives: ['Ibuprofeno', 'Naproxeno']
+    }
+  },
+
+  ibuprofeno: {
+    name: 'Ibuprofeno',
+    aka: ['ibuprofen', 'advil', 'nurofen', 'dalsy', 'espidifen', 'brufen'],
+    class: 'AINE (Antiinflamatorio No Esteroideo)',
+    emoji: '🔵',
+    dosage: '200–400 mg cada 6–8 h (máx 1200 mg/día sin prescripción; 2400 mg con)',
+    uses: 'Dolor leve-moderado, fiebre, inflamación, dismenorrea, cefalea tensional, artritis, lumbalgia, dolor dental, post-quirúrgico.',
+    sideEffects: ['Irritación gastrointestinal, náuseas', 'Úlcera péptica (uso prolongado)', 'Retención de líquidos', 'Elevación leve de TA', 'Raramente: hepatotoxicidad, reacción alérgica'],
+    restrictions: ['Úlcera péptica activa', 'Insuficiencia renal grave', 'Insuficiencia cardiaca grave', 'Tercer trimestre del embarazo', 'Menores de 3 meses'],
+    notFor: ['3er trimestre embarazo (cierre ductus arterioso)', 'Pacientes con riesgo cardiovascular alto', 'Alérgicos a AINEs o aspirina'],
+    fact: 'El ibuprofeno fue desarrollado originalmente como tratamiento para la artritis reumatoide en los años 60. Es tan versátil que la OMS lo incluye en su Lista de Medicamentos Esenciales.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Ibuprofen' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB01050' },
+      { label: 'AEMPS', url: 'https://cima.aemps.es' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'not-recommended', note: 'Contraindicado en el 3er trimestre (riesgo de cierre prematuro del ductus arterioso). Evitar también en 1er y 2do trimestre cuando sea posible.' },
+      allergy_nsaid: { verdict: 'not-recommended', note: 'Contraindicado en pacientes con hipersensibilidad a AINEs o aspirina (reactividad cruzada).' },
+      gastric: { verdict: 'risky', note: 'Riesgo de irritación gástrica y úlcera; usar con protector gástrico (omeprazol) si es necesario.' },
+      renal: { verdict: 'risky', note: 'Los AINEs reducen la perfusión renal. Contraindicado en insuficiencia renal grave.' },
+      hepatic: { verdict: 'risky', note: 'Usar con cautela; preferir paracetamol en hepatopatía.' },
+      child: { verdict: 'suitable', note: 'Apto para niños >3 meses a 5–10 mg/kg cada 6–8 h.' },
+      elderly: { verdict: 'risky', note: 'Mayor riesgo de hemorragia GI y eventos cardiovasculares. Usar menor dosis efectiva con protección gástrica.' },
+      alternatives: ['Paracetamol', 'Naproxeno', 'Diclofenaco']
+    }
+  },
+
+  aspirina: {
+    name: 'Aspirina (AAS)',
+    aka: ['aspirin', 'ácido acetilsalicílico', 'aas', 'acido acetilsalicilico', 'acetylsalicylic acid', 'asa'],
+    class: 'AINE / Antiagregante plaquetario',
+    emoji: '⚪',
+    dosage: 'Analgesia: 500–1000 mg/6–8h. Antiagregación: 100 mg/día',
+    uses: 'Dolor leve-moderado, fiebre, inflamación; prevención de eventos cardiovasculares (IAM, ACV) en dosis bajas; antiagregación plaquetaria.',
+    sideEffects: ['Irritación y sangrado gastrointestinal', 'Tinnitus con dosis altas', 'Síndrome de Reye en niños (menores de 16 años)', 'Reacciones de hipersensibilidad'],
+    restrictions: ['Niños y adolescentes menores de 16 años con fiebre viral', 'Úlcera péptica activa', 'Hemofilia', 'Embarazo (esp. 3er trimestre)', 'Alergia a AINEs'],
+    notFor: ['Síndrome de Reye en niños febriles', 'Hemofilia o trastornos hemorrágicos', 'Pacientes con alergia a salicilatos'],
+    fact: 'La aspirina es uno de los medicamentos más antiguos del mundo: el ácido salicílico ya era usado por los griegos y egipcios hace más de 3.500 años. En 1899, Bayer la registró con su nombre comercial.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Aspirin' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00945' },
+      { label: 'ACC/AHA Guidelines', url: 'https://www.heart.org' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'risky', note: 'Contraindicada en dosis analgésicas durante el embarazo. Dosis bajas (100 mg) pueden usarse bajo supervisión médica estricta en preeclampsia.' },
+      allergy_nsaid: { verdict: 'not-recommended', note: 'Contraindicada. La alergia a aspirina/salicilatos puede presentar reactividad cruzada con otros AINEs.' },
+      gastric: { verdict: 'risky', note: 'Riesgo significativo de sangrado GI. Usar siempre con protección gástrica si el uso es crónico.' },
+      renal: { verdict: 'risky', note: 'Evitar en insuficiencia renal; los salicilatos se acumulan y pueden empeorar la función renal.' },
+      child: { verdict: 'not-recommended', note: 'Contraindicada en menores de 16 años con cuadros virales febriles por riesgo de síndrome de Reye.' },
+      elderly: { verdict: 'risky', note: 'Mayor riesgo hemorrágico. Si se usa como antiagregante, valorar riesgo/beneficio con médico.' },
+      alternatives: ['Paracetamol', 'Ibuprofeno', 'Clopidogrel (antiagregación)']
+    }
+  },
+
+  amoxicilina: {
+    name: 'Amoxicilina',
+    aka: ['amoxicillin', 'amoxil', 'augmentine', 'clavamox', 'flemoxin'],
+    class: 'Antibiótico betalactámico (penicilina)',
+    emoji: '🟡',
+    dosage: 'Adultos: 250–500 mg cada 8 h o 875 mg cada 12 h. Niños: 25–45 mg/kg/día',
+    uses: 'Infecciones bacterianas del tracto respiratorio (faringitis, sinusitis, neumonía), otitis media, infecciones urinarias, infecciones de piel, erradicación de H. pylori (en combinación).',
+    sideEffects: ['Diarrea, náuseas, vómitos (frecuentes)', 'Exantema cutáneo', 'Raramente: anafilaxia', 'Sobreinfección por Candida'],
+    restrictions: ['Alergia a penicilinas o betalactámicos', 'Precaución en insuficiencia renal (ajuste de dosis)', 'Mononucleosis infecciosa (riesgo de rash)'],
+    notFor: ['Pacientes alérgicos a penicilinas', 'Infecciones virales (antibiótico sin efecto)', 'No usar sin diagnóstico bacteriano confirmado'],
+    fact: 'La amoxicilina es la penicilina oral más prescrita del mundo. Fue desarrollada en 1972 como una mejora de la ampicilina con mejor absorción oral y menor frecuencia de dosis.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Amoxicillin' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB01060' },
+      { label: 'AEMPS', url: 'https://cima.aemps.es' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'suitable', note: 'Considerada segura durante el embarazo (categoría B). Se usa ampliamente para infecciones bacterianas en embarazadas.' },
+      allergy_nsaid: { verdict: 'suitable', note: 'La alergia a AINEs no interfiere con amoxicilina. Verificar alergia específica a penicilinas.' },
+      gastric: { verdict: 'suitable', note: 'Puede tomarse con o sin alimentos. Puede causar molestias GI leves; tomar con comida si hay intolerancia.' },
+      renal: { verdict: 'risky', note: 'Ajustar dosis en insuficiencia renal. Vigilar acumulación del fármaco.' },
+      child: { verdict: 'suitable', note: 'Ampliamente utilizado en pediatría a dosis ajustadas al peso.' },
+      elderly: { verdict: 'suitable', note: 'Generalmente bien tolerado. Ajustar según función renal en ancianos.' },
+      alternatives: ['Azitromicina', 'Claritromicina', 'Cefalexina']
+    }
+  },
+
+  metformina: {
+    name: 'Metformina',
+    aka: ['metformin', 'glucophage', 'diaformin', 'fortamet', 'glumetza'],
+    class: 'Antidiabético biguanida',
+    emoji: '🔴',
+    dosage: '500–850 mg 2–3 veces/día con las comidas (máx 3000 mg/día)',
+    uses: 'Diabetes mellitus tipo 2 como primera línea de tratamiento, síndrome de ovario poliquístico, prevención de diabetes tipo 2 en prediabetes.',
+    sideEffects: ['Náuseas, diarrea, vómitos (especialmente al inicio)', 'Sabor metálico', 'Raramente: acidosis láctica (muy infrecuente)', 'Déficit de vitamina B12 a largo plazo'],
+    restrictions: ['Insuficiencia renal (eGFR < 30 ml/min)', 'Insuficiencia hepática', 'Acidosis metabólica', 'Alcoholismo', 'Embarazo (decisión individualizada)'],
+    notFor: ['Insuficiencia renal severa', 'Contraste yodado intravenoso (suspender temporalmente)', 'Ayuno prolongado o cirugía mayor'],
+    fact: 'La metformina fue descubierta a partir de la planta Galega officinalis (lila de cabra), usada en la medicina popular europea para tratar síntomas similares a la diabetes. Está en la lista de medicamentos esenciales de la OMS.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Metformin' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00331' },
+      { label: 'ADA Standards', url: 'https://diabetesjournals.org/care/issue/47/Supplement_1' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'risky', note: 'Uso en embarazo es controvertido. Insulina sigue siendo el estándar para diabetes gestacional, aunque metformina se usa en algunos protocolos bajo supervisión.' },
+      allergy_nsaid: { verdict: 'suitable', note: 'Sin interacción relevante con alergias a AINEs.' },
+      gastric: { verdict: 'risky', note: 'Puede agravar síntomas gastrointestinales. Tomar siempre con comida y titulación lenta.' },
+      renal: { verdict: 'not-recommended', note: 'Contraindicada en insuficiencia renal severa (eGFR <30). Ajustar en moderada.' },
+      hepatic: { verdict: 'not-recommended', note: 'Contraindicada en hepatopatía severa por riesgo de acidosis láctica.' },
+      child: { verdict: 'risky', note: 'Uso en mayores de 10 años con DM2 aprobado; no para menores de 10 años en la mayoría de guías.' },
+      elderly: { verdict: 'risky', note: 'Vigilar función renal en ancianos. Puede usarse si eGFR >45, con revisiones periódicas.' },
+      alternatives: ['Sitagliptina', 'Empagliflozina', 'Insulina']
+    }
+  },
+
+  omeprazol: {
+    name: 'Omeprazol',
+    aka: ['omeprazole', 'prilosec', 'losec', 'mopral', 'omifin'],
+    class: 'Inhibidor de la bomba de protones (IBP)',
+    emoji: '🟣',
+    dosage: '20–40 mg una vez al día, antes del desayuno',
+    uses: 'Úlcera gástrica y duodenal, ERGE (reflujo gastroesofágico), gastritis, síndrome de Zollinger-Ellison, protección gástrica con AINEs.',
+    sideEffects: ['Cefalea, náuseas, diarrea (leves)', 'Uso prolongado: déficit de magnesio, vitamina B12 y calcio', 'Aumento del riesgo de infecciones entéricas (Clostridium)', 'Raramente: nefritis intersticial'],
+    restrictions: ['Uso concomitante con clopidogrel (reduce efecto antiagregante)', 'Precaución en hepatopatía severa', 'No se recomienda tratamiento >8 semanas sin reevaluación'],
+    notFor: ['No usar sin causa justificada a largo plazo', 'Interacción con clopidogrel (preferir pantoprazol)'],
+    fact: 'Los inhibidores de la bomba de protones como el omeprazol son los fármacos más vendidos del mundo. Sin embargo, estudios recientes muestran que hasta el 70% de las prescripciones podrían ser innecesarias.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Omeprazole' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00338' },
+      { label: 'AEMPS', url: 'https://cima.aemps.es' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'risky', note: 'Datos limitados. Se prefiere usar con precaución y solo si el beneficio supera el riesgo; se considera relativamente seguro en 2do y 3er trimestre.' },
+      allergy_nsaid: { verdict: 'suitable', note: 'Útil como protección gástrica en pacientes que necesitan AINEs y tienen riesgo gastrointestinal.' },
+      gastric: { verdict: 'suitable', note: 'Primera línea para protección y tratamiento de patologías gástricas.' },
+      renal: { verdict: 'suitable', note: 'Generalmente bien tolerado en insuficiencia renal.' },
+      child: { verdict: 'risky', note: 'Uso en niños >1 año posible en ERGE severo bajo supervisión médica. No recomendado en menores de 1 año.' },
+      elderly: { verdict: 'suitable', note: 'Ampliamente usado en ancianos. Vigilar déficit de magnesio y B12 en uso crónico.' },
+      alternatives: ['Pantoprazol', 'Lansoprazol', 'Ranitidina (H2)']
+    }
+  },
+
+  azitromicina: {
+    name: 'Azitromicina',
+    aka: ['azithromycin', 'zithromax', 'azitromicina', 'sumamed'],
+    class: 'Antibiótico macrólido',
+    emoji: '🔵',
+    dosage: '500 mg/día los primeros 3 días o 500 mg día 1, luego 250 mg días 2-5',
+    uses: 'Infecciones respiratorias (neumonía atípica, bronquitis, faringitis), ITS (clamidia), otitis media, infecciones de piel.',
+    sideEffects: ['Náuseas, diarrea, dolor abdominal', 'Raramente: prolongación QT, arritmias', 'Toxicidad hepática (infrecuente)'],
+    restrictions: ['Hepatopatía grave', 'Prolongación QT conocida', 'Hipersensibilidad a macrólidos'],
+    notFor: ['Pacientes con arritmias cardiacas', 'No usar en infecciones virales'],
+    fact: 'La azitromicina tiene una vida media de eliminación extremadamente larga (~68 horas), lo que permite pautas de tratamiento cortas de solo 3 a 5 días.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Azithromycin' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00207' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'risky', note: 'Datos limitados; uso con precaución y solo si el beneficio supera el riesgo.' },
+      allergy_nsaid: { verdict: 'suitable', note: 'Sin interacción relevante con alergia a AINEs.' },
+      gastric: { verdict: 'risky', note: 'Puede causar molestias GI. Tomar con estómago vacío o con comida si hay intolerancia.' },
+      child: { verdict: 'suitable', note: 'Apto para niños con dosis ajustadas al peso (10 mg/kg/día).' },
+      elderly: { verdict: 'risky', note: 'Vigilar riesgo de prolongación QT y función hepática en ancianos.' },
+      alternatives: ['Amoxicilina', 'Claritromicina', 'Doxiciclina']
+    }
+  },
+
+  diclofenaco: {
+    name: 'Diclofenaco',
+    aka: ['diclofenac', 'voltaren', 'cataflam', 'flector'],
+    class: 'AINE (Antiinflamatorio No Esteroideo)',
+    emoji: '🟠',
+    dosage: '25–75 mg 2–3 veces/día (oral); gel tópico al 1-2%',
+    uses: 'Dolor musculoesquelético, artritis, lumbalgia, dismenorrea, dolor postoperatorio, gota aguda.',
+    sideEffects: ['Irritación gastrointestinal', 'Retención hídrica', 'Elevación de transaminasas', 'Riesgo cardiovascular con uso prolongado'],
+    restrictions: ['Insuficiencia cardiaca, renal o hepática graves', 'Úlcera péptica', 'Tercer trimestre embarazo'],
+    notFor: ['Pacientes con insuficiencia cardiaca', 'Postoperatorio de cirugía coronaria'],
+    fact: 'El diclofenaco tópico en gel tiene una eficacia comparable a la forma oral para dolor musculoesquelético localizado, con muchos menos efectos sistémicos.',
+    sources: [
+      { label: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov/compound/Diclofenac' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com/drugs/DB00586' }
+    ],
+    compat: {
+      pregnancy: { verdict: 'not-recommended', note: 'Contraindicado en el 3er trimestre. Evitar si es posible en toda la gestación.' },
+      allergy_nsaid: { verdict: 'not-recommended', note: 'Contraindicado en alergia a AINEs o aspirina.' },
+      gastric: { verdict: 'risky', note: 'Riesgo GI significativo. Combinar con protección gástrica (IBP).' },
+      elderly: { verdict: 'risky', note: 'Mayor riesgo cardiovascular y GI. Usar la menor dosis eficaz el menor tiempo posible.' },
+      alternatives: ['Paracetamol', 'Ibuprofeno tópico', 'Naproxeno']
+    }
+  }
+};
+
+// ─────────────────────────────────────────
+// NORMALIZE LOOKUP
+// ─────────────────────────────────────────
+function findMed(query) {
+  const q = query.toLowerCase().trim();
+  for (const [key, med] of Object.entries(MEDS)) {
+    if (key === q) return med;
+    if (med.name.toLowerCase() === q) return med;
+    if (med.aka.some(a => a === q || q.includes(a) || a.includes(q))) return med;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────
+// PATIENT INFO PARSER
+// ─────────────────────────────────────────
+function parsePatient(text) {
+  const t = text.toLowerCase();
+  return {
+    pregnant:     /embara|gestaci|pregnant|primer trimestre|segundo trimestre|tercer trimestre/i.test(t),
+    trimester3:   /tercer trimestre|3.*trimestre|trimestre.*3/i.test(t),
+    child:        /niñ|infant|bebé|bebe|pediatr|[0-9]+\s*mes|años.*([0-9]|1[0-5])\b|\b([0-9]|1[0-5])\s*años/i.test(t),
+    elderly:      /ancian|mayor.*65|65.*años|[7-9][0-9]\s*años|vejez|geriatr/i.test(t),
+    allergyNsaid: /alergi.*aine|alergi.*ibuprofen|alergi.*aspirina|alergi.*nsaid|hipersensib.*aine/i.test(t),
+    allergyPenicillin: /alergi.*penicil|alergi.*amoxicil|alergi.*betalact/i.test(t),
+    gastric:      /gastritis|úlcera|ulcera|reflujo|erge|estómago|estomago|dispepsia|gástrico|gastr/i.test(t),
+    renal:        /renal|riñón|riñon|insuficiencia.*renal|dialisis|diálisis/i.test(t),
+    hepatic:      /hepatic|hígado|higado|cirrosis|hepatitis|insuficiencia.*hepática/i.test(t),
+    cardiac:      /cardíac|cardiaco|cardiac|corazón|corazon|arritmia|taquicardia|hipertens/i.test(t),
+    diabetic:     /diabet|glucosa|insulin|glucem/i.test(t),
+    rawText:      t
+  };
+}
+
+// ─────────────────────────────────────────
+// COMPATIBILITY ENGINE
+// ─────────────────────────────────────────
+function analyzeCompat(med, patientText, symptomText) {
+  const p = parsePatient(patientText + ' ' + symptomText);
+  const c = med.compat;
+
+  const flags = [];
+
+  if (p.pregnant) flags.push({ key: 'pregnancy', label: 'Embarazo', ...c.pregnancy });
+  if (p.trimester3 && !p.pregnant) flags.push({ key: 'pregnancy', label: 'Tercer trimestre', ...c.pregnancy });
+  if (p.allergyNsaid && c.allergy_nsaid) flags.push({ key: 'allergy_nsaid', label: 'Alergia a AINEs', ...c.allergy_nsaid });
+  if (p.allergyPenicillin && med.name.toLowerCase().includes('amoxicil')) {
+    flags.push({ key: 'allergy_pen', label: 'Alergia a penicilinas', verdict: 'not-recommended', note: 'Contraindicada en pacientes con alergia a penicilinas. Riesgo de anafilaxia.' });
+  }
+  if (p.gastric && c.gastric) flags.push({ key: 'gastric', label: 'Patología gástrica', ...c.gastric });
+  if (p.renal && c.renal) flags.push({ key: 'renal', label: 'Insuficiencia renal', ...c.renal });
+  if (p.hepatic && c.hepatic) flags.push({ key: 'hepatic', label: 'Hepatopatía', ...c.hepatic });
+  if (p.child && c.child) flags.push({ key: 'child', label: 'Paciente pediátrico', ...c.child });
+  if (p.elderly && c.elderly) flags.push({ key: 'elderly', label: 'Paciente anciano', ...c.elderly });
+
+  // Determine overall verdict
+  let verdict = 'suitable';
+  if (flags.some(f => f.verdict === 'not-recommended')) verdict = 'not-recommended';
+  else if (flags.some(f => f.verdict === 'risky')) verdict = 'risky';
+  else if (flags.length === 0) {
+    // No specific flags — base verdict on typical usage
+    verdict = 'suitable';
+  }
+
+  return { verdict, flags, alternatives: c.alternatives || [] };
+}
+
+// Infer suitability of med for symptoms
+function suitabilityText(med, patientText) {
+  const t = patientText.toLowerCase();
+  const name = med.name.toLowerCase();
+
+  // Check if symptoms/condition mention things the med treats
+  const usesLower = med.uses.toLowerCase();
+
+  const condMap = {
+    'dolor': ['dolor', 'pain', 'cefalea', 'headache', 'muscular'],
+    'fiebre': ['fiebre', 'fever', 'temperatura'],
+    'infección': ['infección', 'infeccion', 'bacteria', 'amigdal', 'faringit', 'sinusit', 'otitis', 'neumonia', 'neumonía'],
+    'diabetes': ['diabet', 'glucosa', 'azúcar', 'azucar'],
+    'gastritis': ['gastrit', 'reflujo', 'úlcera', 'ulcera', 'estomago', 'gástrico'],
+    'inflamación': ['inflamac', 'artritis', 'lumbal', 'rodilla'],
+  };
+
+  const matched = [];
+  for (const [cond, keywords] of Object.entries(condMap)) {
+    if (keywords.some(k => t.includes(k)) && usesLower.includes(cond.split('/')[0])) {
+      matched.push(cond);
+    }
+  }
+
+  if (matched.length > 0) {
+    return { match: true, text: `${med.name} está indicado para ${matched.join(', ')}, lo cual corresponde con la información del paciente proporcionada.` };
+  }
+
+  // Generic
+  return { match: null, text: `${med.name} se usa principalmente para: ${med.uses.split('.')[0]}.` };
+}
+
+// ─────────────────────────────────────────
+// GENERATE UNKNOWN MED FALLBACK
+// ─────────────────────────────────────────
+function unknownMedSheet(medName) {
+  return {
+    name: medName,
+    class: 'Medicamento — clase no identificada',
+    emoji: '💊',
+    dosage: 'Consultar prospecto o profesional sanitario',
+    uses: 'No se dispone de información específica. Consultar ficha técnica oficial o al farmacéutico.',
+    sideEffects: ['Consultar prospecto del medicamento'],
+    restrictions: ['Consultar con el médico o farmacéutico'],
+    notFor: ['Información no disponible'],
+    fact: `El nombre "${medName}" no ha sido reconocido en la base de datos local. Se recomienda consultar CIMA (AEMPS), Vademecum o DrugBank para información precisa.`,
+    sources: [
+      { label: 'CIMA AEMPS', url: 'https://cima.aemps.es' },
+      { label: 'Vademecum', url: 'https://www.vademecum.es' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com' }
+    ]
+  };
+}
+
+// ─────────────────────────────────────────
+// RENDER VERDICT BADGE
+// ─────────────────────────────────────────
+function verdictBadge(verdict) {
+  const map = {
+    'suitable':          { cls: 'suitable',          icon: '✅', text: 'Adecuado' },
+    'risky':             { cls: 'risky',              icon: '⚠️', text: 'Potencialmente arriesgado' },
+    'not-recommended':   { cls: 'not-recommended',   icon: '🚫', text: 'No recomendado' },
+    'uncertain':         { cls: 'uncertain',          icon: '❓', text: 'Incierto' }
+  };
+  const v = map[verdict] || map['uncertain'];
+  return `<span class="verdict-badge ${v.cls}">${v.icon} ${v.text}</span>`;
+}
+
+function sectionColor(verdict) {
+  return { 'suitable': 'green', 'risky': 'orange', 'not-recommended': 'red', 'uncertain': 'gray' }[verdict] || 'gray';
+}
+
+function indicatorClass(verdict) {
+  return { 'suitable': 'green', 'risky': 'orange', 'not-recommended': 'red', 'uncertain': 'gray' }[verdict] || 'gray';
+}
+
+// ─────────────────────────────────────────
+// SOURCES HTML
+// ─────────────────────────────────────────
+function sourcesHtml(sources) {
+  return `<div class="sources-bar">
+    <span>📚 Fuentes:</span>
+    ${sources.map(s => `<a class="source-link" href="${s.url}" target="_blank" rel="noopener">🔗 ${s.label}</a>`).join('')}
+  </div>`;
+}
+
+// ─────────────────────────────────────────
+// MODE 1: RENDER MED SHEET
+// ─────────────────────────────────────────
+function renderMedSheet(med) {
+  return `
+  <div class="med-card">
+    <div class="med-card-header">
+      <div class="med-icon-wrap">${med.emoji}</div>
+      <div class="med-header-info">
+        <h2>${med.name}</h2>
+        <div class="med-class">${med.class}</div>
+        <div class="med-dosage">📏 ${med.dosage}</div>
+      </div>
+    </div>
+    <div class="med-body">
+      <div class="med-section">
+        <h3 class="green">🎯 Para qué se usa</h3>
+        <p>${med.uses}</p>
+      </div>
+      <div class="med-section">
+        <h3 class="orange">⚠️ Efectos secundarios</h3>
+        <ul>${med.sideEffects.map(e => `<li>${e}</li>`).join('')}</ul>
+      </div>
+      <div class="med-section">
+        <h3 class="red">🚫 Cuándo NO usar</h3>
+        <ul>${med.notFor.map(e => `<li>${e}</li>`).join('')}</ul>
+      </div>
+      <div class="med-section">
+        <h3 class="blue">⚙️ Restricciones</h3>
+        <ul>${med.restrictions.map(e => `<li>${e}</li>`).join('')}</ul>
+      </div>
+      <div class="fact-box">
+        <div class="fact-icon">💡</div>
+        <p><strong>Dato curioso: </strong>${med.fact}</p>
+      </div>
+    </div>
+    ${sourcesHtml(med.sources)}
+    <div class="card-footer">
+      <button class="btn-secondary" onclick="resetToMain(false)">
+        ← Otro medicamento
+      </button>
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────
+// MODE 2: RENDER COMPAT RESULT
+// ─────────────────────────────────────────
+function renderCompat(med, patientText, medQuery) {
+  const { verdict, flags, alternatives } = analyzeCompat(med, patientText, medQuery);
+  const suit = suitabilityText(med, patientText + ' ' + medQuery);
+  const col = sectionColor(verdict);
+
+  // Safety section
+  let safetyHtml;
+  if (flags.length === 0) {
+    safetyHtml = `<p>No se identificaron factores de riesgo específicos en la información del paciente. ${med.name} tiene un perfil de seguridad establecido. Seguir las dosis recomendadas y consultar al médico ante cualquier duda.</p>`;
+  } else {
+    safetyHtml = flags.map(f => `
+      <div class="suitability-row" style="margin-bottom:10px; align-items:flex-start">
+        <div class="suit-indicator ${indicatorClass(f.verdict)}" style="margin-top:6px"></div>
+        <div>
+          <strong style="font-size:0.88rem; color:#374151">${f.label}</strong>
+          <p style="margin-top:3px">${f.note}</p>
+        </div>
+      </div>`).join('');
+  }
+
+  // Explanation
+  let explanation;
+  if (verdict === 'suitable') {
+    explanation = `Basándonos en la información disponible, ${med.name} parece adecuado para este caso. ${suit.text} No se han identificado contraindicaciones absolutas con las condiciones del paciente descritas. Se recomienda confirmar con el médico tratante y respetar las dosis establecidas.`;
+  } else if (verdict === 'risky') {
+    explanation = `${med.name} puede ser útil para la condición descrita, pero existen factores de riesgo que requieren precaución. ${suit.text} Se recomienda supervisión médica, posible ajuste de dosis y monitorización durante el tratamiento.`;
+  } else if (verdict === 'not-recommended') {
+    explanation = `Existe al menos una contraindicación relevante para usar ${med.name} en este paciente. ${suit.text} Se recomienda buscar alternativas terapéuticas y consultar con el médico o farmacéutico antes de administrar este medicamento.`;
+  } else {
+    explanation = `La información disponible es insuficiente para una evaluación completa de ${med.name} en este caso. Se recomienda consultar con un profesional sanitario para una valoración individualizada.`;
+  }
+
+  // Alternatives
+  let altsHtml = '';
+  if ((verdict === 'risky' || verdict === 'not-recommended') && alternatives.length > 0) {
+    altsHtml = `
+    <div class="compat-section">
+      <h3 class="blue">🔄 Alternativas posibles</h3>
+      <p style="margin-bottom:12px">Las siguientes alternativas podrían ser más adecuadas para este paciente. Haz clic para ver su ficha.</p>
+      <div class="alt-list">
+        ${alternatives.map(a => `<span class="alt-pill" onclick="goToMedSheet('${a}')">💊 ${a}</span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  return `
+  <div class="compat-card">
+    <div class="compat-header">
+      <div class="compat-header-left">
+        <h2>Análisis de concordancia: <span style="color:var(--blue)">${med.name}</span></h2>
+        <p>Evaluación para el perfil de paciente descrito</p>
+      </div>
+      ${verdictBadge(verdict)}
+    </div>
+    <div class="compat-sections">
+      <div class="compat-section">
+        <h3 class="${suit.match ? 'green' : 'gray'}">🎯 Idoneidad para la condición</h3>
+        <div class="suitability-row">
+          <div class="suit-indicator ${suit.match ? 'green' : 'gray'}"></div>
+          <p>${suit.text}</p>
+        </div>
+      </div>
+      <div class="compat-section">
+        <h3 class="${col}">🛡️ Seguridad para el paciente</h3>
+        ${safetyHtml}
+      </div>
+      <div class="compat-section">
+        <h3 class="blue">📋 Explicación</h3>
+        <p>${explanation}</p>
+      </div>
+      ${altsHtml}
+    </div>
+    ${sourcesHtml(med.sources)}
+    <div class="card-footer">
+      <button class="btn-secondary" onclick="resetToMain(true)">
+        ← Otro caso
+      </button>
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────
+// NAVIGATION HELPERS
+// ─────────────────────────────────────────
+function resetToMain(keepCompatMode) {
+  document.getElementById('initial-screen').style.display = '';
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('result-section').innerHTML = '';
+  document.getElementById('med-input').value = '';
+  document.getElementById('patient-input').value = '';
+  if (!keepCompatMode && compatMode) {
+    toggleMode(); // turn off
+  }
+  document.getElementById('med-input').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goToMedSheet(medName) {
+  // Switch to Mode 1, fill med name
+  if (compatMode) toggleMode();
+  document.getElementById('initial-screen').style.display = '';
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('result-section').innerHTML = '';
+  document.getElementById('med-input').value = medName;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Auto-trigger after short delay
+  setTimeout(() => handleAction(), 200);
+}
+
+// ─────────────────────────────────────────
+// TOGGLE MODE
+// ─────────────────────────────────────────
+function toggleMode() {
+  compatMode = !compatMode;
+  const btn = document.getElementById('toggle-btn');
+  const patientWrap = document.getElementById('patient-wrap');
+  const actionBtn = document.getElementById('action-btn');
+  const medInput = document.getElementById('med-group');
+
+  btn.classList.toggle('active', compatMode);
+  btn.setAttribute('aria-pressed', compatMode);
+  patientWrap.classList.toggle('visible', compatMode);
+
+  if (compatMode) {
+    actionBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> Análisis de concordancia`;
+    medInput.querySelector('label').textContent = '💊 Medicamento';
+  } else {
+    actionBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg> Ficha de medicamento`;
+  }
+}
+
+// ─────────────────────────────────────────
+// MAIN ACTION
+// ─────────────────────────────────────────
+function handleAction() {
+  const medQuery = document.getElementById('med-input').value.trim();
+  const patientText = document.getElementById('patient-input').value.trim();
+  const errorBox = document.getElementById('error-box');
+
+  if (!medQuery) {
+    errorBox.style.display = 'block';
+    document.getElementById('med-input').focus();
+    setTimeout(() => { errorBox.style.display = 'none'; }, 3000);
+    return;
+  }
+  errorBox.style.display = 'none';
+
+  // Show result section
+  document.getElementById('initial-screen').style.display = 'none';
+  const resultSection = document.getElementById('result-section');
+  resultSection.style.display = 'block';
+  resultSection.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p>Consultando base de datos médica…</p></div>`;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Simulate async
+  setTimeout(() => {
+    let med = findMed(medQuery);
+    let html;
+
+    if (compatMode) {
+      if (!med) {
+        if (!patientText) {
+          // Truly unknown
+          html = `<div class="compat-card">
+            <div class="compat-header">
+              <div class="compat-header-left">
+                <h2>Análisis: <span style="color:var(--blue)">${medQuery}</span></h2>
+              </div>
+              ${verdictBadge('uncertain')}
+            </div>
+            <div class="compat-sections">
+              <div class="compat-section">
+                <h3 class="gray">❓ Información no disponible</h3>
+                <p>El medicamento "<strong>${medQuery}</strong>" no se encuentra en la base de datos local y no se ha proporcionado información del paciente. No es posible realizar una evaluación de concordancia.</p>
+                <p style="margin-top:10px">Consulta las fuentes médicas de referencia para obtener información sobre este medicamento.</p>
+              </div>
+            </div>
+            ${sourcesHtml([
+              { label: 'CIMA AEMPS', url: 'https://cima.aemps.es' },
+              { label: 'Vademecum', url: 'https://www.vademecum.es' },
+              { label: 'DrugBank', url: 'https://go.drugbank.com' }
+            ])}
+            <div class="card-footer"><button class="btn-secondary" onclick="resetToMain(true)">← Otro caso</button></div>
+          </div>`;
+        } else {
+          // Unknown med but has patient info — attempt generic analysis
+          html = renderGenericCompat(medQuery, patientText);
+        }
+      } else {
+        html = renderCompat(med, patientText, medQuery);
+      }
+    } else {
+      // Mode 1
+      if (!med) med = unknownMedSheet(medQuery);
+      html = renderMedSheet(med);
+    }
+
+    resultSection.innerHTML = html;
+  }, 900);
+}
+
+// Generic compat for unknown meds
+function renderGenericCompat(medName, patientText) {
+  const p = parsePatient(patientText);
+  const risks = [];
+  if (p.pregnant) risks.push('embarazo (precaución general con cualquier medicamento)');
+  if (p.child) risks.push('edad pediátrica (verificar dosis y contraindicaciones específicas)');
+  if (p.elderly) risks.push('edad avanzada (mayor sensibilidad a efectos adversos)');
+  if (p.renal) risks.push('función renal comprometida (posible ajuste de dosis)');
+  if (p.hepatic) risks.push('función hepática comprometida (posible ajuste de dosis)');
+
+  const verdict = risks.length > 2 ? 'risky' : (risks.length > 0 ? 'risky' : 'uncertain');
+
+  return `
+  <div class="compat-card">
+    <div class="compat-header">
+      <div class="compat-header-left">
+        <h2>Análisis: <span style="color:var(--blue)">${medName}</span></h2>
+        <p>Evaluación basada en factores de riesgo generales</p>
+      </div>
+      ${verdictBadge(verdict)}
+    </div>
+    <div class="compat-sections">
+      <div class="compat-section">
+        <h3 class="gray">🎯 Idoneidad para la condición</h3>
+        <p><strong>${medName}</strong> no se encuentra en la base de datos local. No es posible confirmar automáticamente la indicación específica para los síntomas descritos. Se recomienda consultar la ficha técnica oficial o un profesional sanitario.</p>
+      </div>
+      <div class="compat-section">
+        <h3 class="${risks.length > 0 ? 'orange' : 'gray'}">🛡️ Factores de riesgo del paciente</h3>
+        ${risks.length > 0
+          ? `<p>Se identificaron los siguientes factores que requieren atención especial al considerar cualquier medicamento:</p><ul style="margin-top:10px; padding-left:18px; font-size:0.92rem; color:#374151; line-height:1.7">${risks.map(r => `<li>${r}</li>`).join('')}</ul>`
+          : `<p>No se identificaron factores de riesgo específicos en la descripción del paciente. Aun así, se recomienda consultar la ficha técnica del medicamento.</p>`}
+      </div>
+      <div class="compat-section">
+        <h3 class="blue">📋 Explicación</h3>
+        <p>No se dispone de información específica sobre <strong>${medName}</strong> en la base de datos local. Se ha realizado una evaluación general de riesgo basada en el perfil del paciente. Para una evaluación precisa, consulte las fuentes de referencia o un profesional sanitario.</p>
+      </div>
+    </div>
+    ${sourcesHtml([
+      { label: 'CIMA AEMPS', url: 'https://cima.aemps.es' },
+      { label: 'Vademecum', url: 'https://www.vademecum.es' },
+      { label: 'DrugBank', url: 'https://go.drugbank.com' }
+    ])}
+    <div class="card-footer"><button class="btn-secondary" onclick="resetToMain(true)">← Otro caso</button></div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────
+// EVENT LISTENERS
+// ─────────────────────────────────────────
+document.getElementById('toggle-btn').addEventListener('click', toggleMode);
+
+document.getElementById('action-btn').addEventListener('click', handleAction);
+
+// Enter key on inputs
+document.getElementById('med-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !compatMode) handleAction();
+  if (e.key === 'Enter' && compatMode && e.ctrlKey) handleAction();
+});
+document.getElementById('patient-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) handleAction();
+});
+</script>
+</body>
+</html>
