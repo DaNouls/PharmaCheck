@@ -5,8 +5,40 @@
  */
 
 const API_BASE = 'http://localhost:8000';
+const AI_DAILY_LIMIT = 20;
 
 let compatMode = false;
+
+// ─────────────────────────────────────────
+// AI USAGE COUNTER
+// ─────────────────────────────────────────
+
+function getAiUsage() {
+  const today = new Date().toISOString().slice(0, 10);
+  const stored = JSON.parse(localStorage.getItem('pharmacheck_ai') || '{}');
+  if (stored.date !== today) return { date: today, used: 0 };
+  return stored;
+}
+
+function getAiRemaining() {
+  return AI_DAILY_LIMIT - getAiUsage().used;
+}
+
+function incrementAiUsage() {
+  const usage = getAiUsage();
+  usage.used = Math.min(usage.used + 1, AI_DAILY_LIMIT);
+  localStorage.setItem('pharmacheck_ai', JSON.stringify(usage));
+  renderAiCounter();
+}
+
+function renderAiCounter() {
+  const remaining = getAiRemaining();
+  const el = document.getElementById('ai-counter');
+  if (!el) return;
+  const cls = remaining > 10 ? 'green' : remaining > 5 ? 'orange' : 'red';
+  el.className = `ai-counter ${cls}`;
+  el.innerHTML = `<span class="ai-counter-icon">✨</span><span class="ai-counter-text">${remaining}/${AI_DAILY_LIMIT} IA</span>`;
+}
 
 // ─────────────────────────────────────────
 // API CALLS
@@ -33,6 +65,16 @@ async function apiGeminiCompatibility(drugName, patientText, symptomText = '') {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ drug_name: drugName, patient_text: patientText, symptom_text: symptomText }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function apiGeminiSheet(drugName) {
+  const res = await fetch(`${API_BASE}/api/drugs/gemini-sheet`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ drug_name: drugName, patient_text: '', symptom_text: '' }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -89,7 +131,154 @@ function externalBoxHtml(ext) {
 }
 
 // ─────────────────────────────────────────
-// MODE 1: RENDER MED SHEET
+// MODE 1A: RENDER GEMINI DRUG SHEET
+// ─────────────────────────────────────────
+
+function renderGeminiSheet(data) {
+  const {
+    nombre, clase_farmacologica, emoji, resumen,
+    para_que_sirve, como_funciona, dosificacion_tipica,
+    efectos_secundarios = [], contraindicaciones = [],
+    advertencias_importantes = [], interacciones_destacadas = [],
+    poblaciones_especiales = {}, dato_curioso, consejos_practicos = [],
+    sources = [],
+  } = data;
+
+  // Side effect chips
+  const efectosHtml = efectos_secundarios.length
+    ? `<div class="gs-effects-grid">
+        ${efectos_secundarios.map(e => `
+          <div class="gs-effect-chip ${e.gravedad}">
+            <span class="gs-effect-name">${e.efecto}</span>
+            <div class="gs-effect-tags">
+              <span class="gs-effect-tag freq">${e.frecuencia}</span>
+              <span class="gs-effect-tag grav-${e.gravedad}">${e.gravedad}</span>
+            </div>
+          </div>`).join('')}
+      </div>`
+    : '<p>Consultar prospecto para efectos adversos completos.</p>';
+
+  // Populations
+  const pops = [
+    { icon: '🤰', label: 'Embarazo',       val: poblaciones_especiales.embarazo },
+    { icon: '👶', label: 'Niños',          val: poblaciones_especiales.ninos },
+    { icon: '👴', label: 'Ancianos',       val: poblaciones_especiales.ancianos },
+    { icon: '🫘', label: 'Ins. renal',     val: poblaciones_especiales.insuficiencia_renal },
+    { icon: '🫀', label: 'Ins. hepática',  val: poblaciones_especiales.insuficiencia_hepatica },
+  ].filter(p => p.val);
+
+  const popHtml = pops.map(p => `
+    <div class="gs-pop-card">
+      <div class="gs-pop-header"><span class="gs-pop-icon">${p.icon}</span>${p.label}</div>
+      <div class="gs-pop-body">${p.val}</div>
+    </div>`).join('');
+
+  const fallbackSources = [
+    { label: 'OpenFDA', url: 'https://open.fda.gov' },
+    { label: 'FDA', url: 'https://www.fda.gov/drugs' },
+  ];
+
+  return `
+  <div class="gs-card">
+
+    <div class="gs-header">
+      <div class="gs-header-top">
+        <div class="gs-emoji-wrap">${emoji || '💊'}</div>
+        <div class="gs-header-info">
+          <h2 class="gs-title">${nombre}</h2>
+          <span class="gs-class-pill">${clase_farmacologica}</span>
+        </div>
+        <span class="gs-ai-badge">✨ Gemini AI</span>
+      </div>
+      <p class="gs-resumen">${resumen}</p>
+    </div>
+
+    <div class="gs-info-row">
+      <div class="gs-info-pill">
+        <span class="gs-info-pill-icon">⚙️</span>
+        <div class="gs-info-pill-text">
+          <div class="gs-info-pill-label">Mecanismo de acción</div>
+          <div class="gs-info-pill-value">${como_funciona}</div>
+        </div>
+      </div>
+      <div class="gs-info-pill">
+        <span class="gs-info-pill-icon">📏</span>
+        <div class="gs-info-pill-text">
+          <div class="gs-info-pill-label">Dosificación típica</div>
+          <div class="gs-info-pill-value">${dosificacion_tipica}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="gs-body">
+
+      <div class="gs-section">
+        <div class="gs-section-title green">🎯 Para qué sirve</div>
+        <p>${para_que_sirve}</p>
+      </div>
+
+      <div class="gs-section">
+        <div class="gs-section-title orange">⚠️ Efectos secundarios</div>
+        ${efectosHtml}
+      </div>
+
+      <div class="gs-two-col">
+        <div class="gs-section">
+          <div class="gs-section-title red">🚫 Contraindicaciones</div>
+          <ul class="gs-list red">
+            ${contraindicaciones.map(c => `<li>${c}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="gs-section">
+          <div class="gs-section-title orange">⚡ Advertencias importantes</div>
+          <ul class="gs-list orange">
+            ${advertencias_importantes.map(a => `<li>${a}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      ${pops.length ? `
+      <div class="gs-section">
+        <div class="gs-section-title blue">👥 Poblaciones especiales</div>
+        <div class="gs-pop-grid">${popHtml}</div>
+      </div>` : ''}
+
+      ${interacciones_destacadas.length ? `
+      <div class="gs-section">
+        <div class="gs-section-title amber">🔗 Interacciones destacadas</div>
+        <ul class="gs-list amber">
+          ${interacciones_destacadas.map(i => `<li>${i}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      ${consejos_practicos.length ? `
+      <div class="gs-section">
+        <div class="gs-section-title green">✅ Consejos prácticos</div>
+        <ul class="gs-list green">
+          ${consejos_practicos.map(c => `<li>${c}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+    </div>
+
+    ${dato_curioso ? `
+    <div class="gs-curious-box">
+      <span class="gs-curious-icon">💡</span>
+      <div class="gs-curious-text">
+        <strong>¿Sabías que…?</strong>
+        <p>${dato_curioso}</p>
+      </div>
+    </div>` : ''}
+
+    ${sourcesHtml(sources.length ? sources : fallbackSources)}
+    <div class="card-footer">
+      <button class="btn-secondary" onclick="resetToMain(false)">← Otro medicamento</button>
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────
+// MODE 1B: RENDER MED SHEET (fallback)
 // ─────────────────────────────────────────
 
 function renderMedSheet(med, externalData = null) {
@@ -416,13 +605,17 @@ async function handleAction() {
   errorBox.style.display = 'none';
   apiBanner.style.display = 'none';
 
+  const useGeminiForSheet = !compatMode && getAiRemaining() > 5;
+
   // Show loading
   document.getElementById('initial-screen').style.display = 'none';
   const resultSection = document.getElementById('result-section');
   resultSection.style.display = 'block';
   const loadingMsg = compatMode
     ? 'Generando informe con Gemini AI…'
-    : 'Consultando base de datos médica…';
+    : useGeminiForSheet
+      ? 'Generando ficha con Gemini AI…'
+      : 'Consultando base de datos médica…';
   resultSection.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p>${loadingMsg}</p></div>`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -430,23 +623,36 @@ async function handleAction() {
     let html;
 
     if (compatMode) {
+      incrementAiUsage();
       const geminiData = await apiGeminiCompatibility(medQuery, patientText, medQuery);
       html = renderGeminiReport(geminiData);
+
+    } else if (useGeminiForSheet) {
+      incrementAiUsage();
+      const geminiSheetData = await apiGeminiSheet(medQuery);
+
+      if (!geminiSheetData.error) {
+        html = renderGeminiSheet(geminiSheetData);
+      } else {
+        // Gemini falló — usar ficha estándar como fallback
+        const [searchData, externalData] = await Promise.allSettled([
+          apiSearchDrug(medQuery),
+          apiExternalDrug(medQuery),
+        ]);
+        const local = searchData.status === 'fulfilled' ? searchData.value : null;
+        const ext   = externalData.status === 'fulfilled' ? externalData.value : null;
+        html = (local && local.found) ? renderMedSheet(local.drug, ext) : renderUnknownMedSheet(medQuery, ext);
+      }
+
     } else {
-      // Buscar en local y en OpenFDA en paralelo
+      // Ficha estándar (sin IA — pocos usos restantes)
       const [searchData, externalData] = await Promise.allSettled([
         apiSearchDrug(medQuery),
         apiExternalDrug(medQuery),
       ]);
-
       const local = searchData.status === 'fulfilled' ? searchData.value : null;
       const ext   = externalData.status === 'fulfilled' ? externalData.value : null;
-
-      if (local && local.found) {
-        html = renderMedSheet(local.drug, ext);
-      } else {
-        html = renderUnknownMedSheet(medQuery, ext);
-      }
+      html = (local && local.found) ? renderMedSheet(local.drug, ext) : renderUnknownMedSheet(medQuery, ext);
     }
 
     resultSection.innerHTML = html;
@@ -473,3 +679,6 @@ document.getElementById('med-input').addEventListener('keydown', e => {
 document.getElementById('patient-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.ctrlKey) handleAction();
 });
+
+// Init counter
+renderAiCounter();

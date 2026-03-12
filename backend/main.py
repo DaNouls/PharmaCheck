@@ -8,6 +8,7 @@ import re
 import json
 import asyncio
 import httpx
+from difflib import get_close_matches
 from typing import Optional, List
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,83 +27,242 @@ OPENFDA_URL   = "https://api.fda.gov/drug/label.json"
 GEMINI_KEY    = "AIzaSyCXS4Kg9yRrzQ5XOmZ8ZwiZAeU3GxSh-wE"
 GEMINI_URL    = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
-# Nombres europeos/españoles → nombre FDA (inglés)
+# Nombres europeos/españoles/franceses/portugueses/italianos → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
     # Analgésicos / Antipiréticos
-    "paracetamol":     "acetaminophen",
-    "acetaminofén":    "acetaminophen",
-    "gelocatil":       "acetaminophen",
-    "efferalgan":      "acetaminophen",
-    "termalgín":       "acetaminophen",
+    "paracetamol":        "acetaminophen",
+    "acetaminofén":       "acetaminophen",
+    "acetaminofen":       "acetaminophen",
+    "gelocatil":          "acetaminophen",
+    "efferalgan":         "acetaminophen",
+    "termalgín":          "acetaminophen",
+    "termalgín":          "acetaminophen",
+    "doliprane":          "acetaminophen",   # francés
+    "panadol":            "acetaminophen",
+    "tylenol":            "acetaminophen",
+    "tachipirina":        "acetaminophen",   # italiano
     # AINEs
-    "ibuprofeno":      "ibuprofen",
-    "aspirina":        "aspirin",
+    "ibuprofeno":         "ibuprofen",
+    "ibuprofén":          "ibuprofen",
+    "brufen":             "ibuprofen",
+    "nurofen":            "ibuprofen",
+    "advil":              "ibuprofen",
+    "motrin":             "ibuprofen",
+    "aspirina":           "aspirin",
     "ácido acetilsalicílico": "aspirin",
     "acido acetilsalicilico": "aspirin",
-    "diclofenaco":     "diclofenac",
-    "naproxeno":       "naproxen",
-    "metamizol":       "metamizole",
-    "dipirona":        "metamizole",
+    "acide acétylsalicylique": "aspirin",   # francés
+    "acetilsalicílico":   "aspirin",
+    "acetilsalicilico":   "aspirin",
+    "diclofenaco":        "diclofenac",
+    "diclofénac":         "diclofenac",     # francés
+    "voltaren":           "diclofenac",
+    "naproxeno":          "naproxen",
+    "naproxène":          "naproxen",       # francés
+    "metamizol":          "metamizole",
+    "dipirona":           "metamizole",
+    "nolotil":            "metamizole",
+    "ketorolaco":         "ketorolac",
+    "ketorolac trometamol": "ketorolac",
     # Antibióticos
-    "amoxicilina":     "amoxicillin",
-    "azitromicina":    "azithromycin",
-    "claritromicina":  "clarithromycin",
-    "ciprofloxacino":  "ciprofloxacin",
-    "levofloxacino":   "levofloxacin",
-    "doxiciclina":     "doxycycline",
-    "cefalexina":      "cephalexin",
+    "amoxicilina":        "amoxicillin",
+    "amoxicilline":       "amoxicillin",    # francés
+    "azitromicina":       "azithromycin",
+    "azithromycine":      "azithromycin",   # francés
+    "zithromax":          "azithromycin",
+    "claritromicina":     "clarithromycin",
+    "ciprofloxacino":     "ciprofloxacin",
+    "ciprofloxacine":     "ciprofloxacin",  # francés
+    "levofloxacino":      "levofloxacin",
+    "levofloxacine":      "levofloxacin",   # francés
+    "doxiciclina":        "doxycycline",
+    "doxycycline":        "doxycycline",
+    "cefalexina":         "cephalexin",
+    "cephalexine":        "cephalexin",     # francés
     "amoxicilina clavulánico": "amoxicillin clavulanate",
-    "augmentine":      "amoxicillin clavulanate",
+    "amoxicilina clavulanato": "amoxicillin clavulanate",
+    "augmentine":         "amoxicillin clavulanate",
+    "augmentin":          "amoxicillin clavulanate",
+    "trimetoprim":        "trimethoprim",
+    "sulfametoxazol":     "sulfamethoxazole",
+    "cotrimoxazol":       "trimethoprim sulfamethoxazole",
+    "septrin":            "trimethoprim sulfamethoxazole",
     # Antidiabéticos
-    "metformina":      "metformin",
-    "sitagliptina":    "sitagliptin",
-    "empagliflozina":  "empagliflozin",
+    "metformina":         "metformin",
+    "metformine":         "metformin",      # francés
+    "sitagliptina":       "sitagliptin",
+    "empagliflozina":     "empagliflozin",
+    "dapagliflozina":     "dapagliflozin",
+    "canagliflozina":     "canagliflozin",
+    "glibenclamida":      "glyburide",
+    "glipizida":          "glipizide",
+    "insulina":           "insulin",
     # Gastrointestinal
-    "omeprazol":       "omeprazole",
-    "pantoprazol":     "pantoprazole",
-    "lansoprazol":     "lansoprazole",
-    "ranitidina":      "ranitidine",
+    "omeprazol":          "omeprazole",
+    "oméprazole":         "omeprazole",     # francés
+    "pantoprazol":        "pantoprazole",
+    "lansoprazol":        "lansoprazole",
+    "esomeprazol":        "esomeprazole",
+    "ranitidina":         "ranitidine",
+    "famotidina":         "famotidine",
+    "metoclopramida":     "metoclopramide",
+    "domperidona":        "domperidone",
     # Cardiovascular
-    "atorvastatina":   "atorvastatin",
-    "simvastatina":    "simvastatin",
-    "amlodipino":      "amlodipine",
-    "enalapril":       "enalapril",
-    "lisinopril":      "lisinopril",
-    "losartán":        "losartan",
-    "losartan":        "losartan",
-    "bisoprolol":      "bisoprolol",
-    "metoprolol":      "metoprolol",
-    "furosemida":      "furosemide",
-    "clopidogrel":     "clopidogrel",
+    "atorvastatina":      "atorvastatin",
+    "atorvastatine":      "atorvastatin",   # francés
+    "simvastatina":       "simvastatin",
+    "simvastatine":       "simvastatin",    # francés
+    "rosuvastatina":      "rosuvastatin",
+    "amlodipino":         "amlodipine",
+    "amlodipine":         "amlodipine",
+    "enalapril":          "enalapril",
+    "lisinopril":         "lisinopril",
+    "ramipril":           "ramipril",
+    "losartán":           "losartan",
+    "losartan":           "losartan",
+    "valsartán":          "valsartan",
+    "valsartan":          "valsartan",
+    "bisoprolol":         "bisoprolol",
+    "metoprolol":         "metoprolol",
+    "carvedilol":         "carvedilol",
+    "furosemida":         "furosemide",
+    "furosémide":         "furosemide",     # francés
+    "torasemida":         "torsemide",
+    "espironolactona":    "spironolactone",
+    "clopidogrel":        "clopidogrel",
+    "digoxina":           "digoxin",
+    "amiodarona":         "amiodarone",
+    "nitroglicerina":     "nitroglycerin",
     # Anticoagulantes
-    "acenocumarol":    "acenocoumarol",
-    "warfarina":       "warfarin",
-    "apixabán":        "apixaban",
-    "apixaban":        "apixaban",
-    "rivaroxabán":     "rivaroxaban",
-    "rivaroxaban":     "rivaroxaban",
+    "acenocumarol":       "acenocoumarol",
+    "sintrom":            "acenocoumarol",
+    "warfarina":          "warfarin",
+    "warfarine":          "warfarin",       # francés
+    "apixabán":           "apixaban",
+    "apixaban":           "apixaban",
+    "rivaroxabán":        "rivaroxaban",
+    "rivaroxaban":        "rivaroxaban",
+    "dabigatrán":         "dabigatran",
+    "dabigatran":         "dabigatran",
+    "enoxaparina":        "enoxaparin",
+    "heparina":           "heparin",
     # Psiquiátricos / Neurológicos
-    "alprazolam":      "alprazolam",
-    "lorazepam":       "lorazepam",
-    "diazepam":        "diazepam",
-    "sertralina":      "sertraline",
-    "fluoxetina":      "fluoxetine",
-    "escitalopram":    "escitalopram",
-    "paroxetina":      "paroxetine",
-    "venlafaxina":     "venlafaxine",
-    "pregabalina":     "pregabalin",
-    "gabapentina":     "gabapentin",
+    "alprazolam":         "alprazolam",
+    "lorazepam":          "lorazepam",
+    "diazepam":           "diazepam",
+    "clonazepam":         "clonazepam",
+    "sertralina":         "sertraline",
+    "sertraline":         "sertraline",
+    "fluoxetina":         "fluoxetine",
+    "fluoxétine":         "fluoxetine",     # francés
+    "escitalopram":       "escitalopram",
+    "citalopram":         "citalopram",
+    "paroxetina":         "paroxetine",
+    "paroxétine":         "paroxetine",     # francés
+    "venlafaxina":        "venlafaxine",
+    "venlafaxine":        "venlafaxine",
+    "duloxetina":         "duloxetine",
+    "pregabalina":        "pregabalin",
+    "gabapentina":        "gabapentin",
+    "lamotrigina":        "lamotrigine",
+    "levetiracetam":      "levetiracetam",
+    "valproato":          "valproic acid",
+    "ácido valproico":    "valproic acid",
+    "acido valproico":    "valproic acid",
+    "carbamazepina":      "carbamazepine",
+    "risperidona":        "risperidone",
+    "olanzapina":         "olanzapine",
+    "quetiapina":         "quetiapine",
+    "donepezilo":         "donepezil",
+    "memantina":          "memantine",
+    "zolpidem":           "zolpidem",
+    "melatonina":         "melatonin",
     # Respiratorio
-    "salbutamol":      "albuterol",
-    "ventolin":        "albuterol",
-    "budesonida":      "budesonide",
-    "montelukast":     "montelukast",
+    "salbutamol":         "albuterol",
+    "ventolin":           "albuterol",
+    "ventolín":           "albuterol",
+    "terbutalina":        "terbutaline",
+    "budesonida":         "budesonide",
+    "beclometasona":      "beclomethasone",
+    "fluticasona":        "fluticasone",
+    "montelukast":        "montelukast",
+    "tiotropio":          "tiotropium",
+    "ipratropio":         "ipratropium",
+    "teofilina":          "theophylline",
     # Hormonas / Otros
-    "levotiroxina":    "levothyroxine",
-    "prednisona":      "prednisone",
-    "prednisolona":    "prednisolone",
-    "dexametasona":    "dexamethasone",
+    "levotiroxina":       "levothyroxine",
+    "eutirox":            "levothyroxine",
+    "prednisona":         "prednisone",
+    "prednisolona":       "prednisolone",
+    "dexametasona":       "dexamethasone",
+    "hidrocortisona":     "hydrocortisone",
+    "betametasona":       "betamethasone",
+    "testosterona":       "testosterone",
+    "estrógeno":          "estrogen",
+    "estradiol":          "estradiol",
+    "progesterona":       "progesterone",
+    "anticonceptivo":     "ethinyl estradiol",
+    # Antihistamínicos
+    "cetirizina":         "cetirizine",
+    "loratadina":         "loratadine",
+    "fexofenadina":       "fexofenadine",
+    "difenhidramina":     "diphenhydramine",
+    "ebastina":           "ebastine",
+    # Antivirales
+    "aciclovir":          "acyclovir",
+    "valaciclovir":       "valacyclovir",
+    "oseltamivir":        "oseltamivir",
+    "tamiflu":            "oseltamivir",
+    # Oncología / Otros
+    "metotrexato":        "methotrexate",
+    "ciclofosfamida":     "cyclophosphamide",
+    "tamoxifeno":         "tamoxifen",
+    "alopurinol":         "allopurinol",
+    "colchicina":         "colchicine",
+    "hidroxicloroquina":  "hydroxychloroquine",
 }
+
+# Pre-computar lista de todas las claves (para fuzzy matching)
+_ALL_KNOWN_NAMES = list(NAME_TRANSLATIONS.keys())
+
+
+def fuzzy_resolve_drug_name(query: str) -> str:
+    """
+    Resuelve el nombre de un medicamento tolerando errores tipográficos,
+    nombres en otros idiomas y grafías alternativas.
+
+    Estrategia:
+    1. Coincidencia exacta en NAME_TRANSLATIONS → devuelve traducción FDA
+    2. Coincidencia parcial (el query está contenido en alguna clave, o viceversa)
+    3. difflib.get_close_matches con cutoff 0.72 contra todas las claves conocidas
+    4. difflib más permisivo (0.60) para errores más graves
+    5. Fallback: devuelve el query original tal cual
+
+    Devuelve siempre el nombre FDA si se resuelve, o el query original si no.
+    """
+    q = query.lower().strip()
+
+    # 1. Coincidencia exacta
+    if q in NAME_TRANSLATIONS:
+        return NAME_TRANSLATIONS[q]
+
+    # 2. Coincidencia parcial — el query es prefijo/subcadena de una clave conocida
+    for key, fda_name in NAME_TRANSLATIONS.items():
+        if len(q) >= 4 and (key.startswith(q) or q.startswith(key[:max(4, len(key)-2)])):
+            return fda_name
+
+    # 3. Fuzzy matching estricto (0.72)
+    matches = get_close_matches(q, _ALL_KNOWN_NAMES, n=1, cutoff=0.72)
+    if matches:
+        return NAME_TRANSLATIONS[matches[0]]
+
+    # 4. Fuzzy matching más permisivo (0.60) para errores graves o idiomas
+    matches = get_close_matches(q, _ALL_KNOWN_NAMES, n=1, cutoff=0.60)
+    if matches:
+        return NAME_TRANSLATIONS[matches[0]]
+
+    # 5. Fallback: query original (OpenFDA podría entenderlo directamente en inglés)
+    return query
 
 DEFAULT_SOURCES = [
     {"label": "CIMA AEMPS", "url": "https://cima.aemps.es"},
@@ -127,23 +287,25 @@ class CompatRequest(BaseModel):
 
 async def fetch_openfda_raw(query: str) -> Optional[dict]:
     """
-    Busca en OpenFDA. Traduce nombres europeos/españoles a inglés (FDA) si es necesario.
-    Intenta: nombre traducido → nombre original → brand name → substance name.
+    Busca en OpenFDA. Traduce nombres europeos/españoles/internacionales a inglés (FDA).
+    Usa fuzzy matching para tolerar errores tipográficos y grafías alternativas.
+    Intenta: nombre resuelto → nombre original → brand name → substance name.
     """
     q_lower = query.lower().strip()
-    translated = NAME_TRANSLATIONS.get(q_lower, query)
+    resolved = fuzzy_resolve_drug_name(q_lower)
 
     # Construir lista de términos a probar (sin duplicados)
-    terms = [translated]
-    if translated.lower() != q_lower:
+    terms = [resolved]
+    if resolved.lower() != q_lower:
         terms.append(query)  # también probar el original por si acaso
 
     searches = []
     for term in terms:
+        t = term.strip()
         searches += [
-            f'openfda.generic_name:"{term}"',
-            f'openfda.brand_name:"{term}"',
-            f'openfda.substance_name:"{term}"',
+            f'openfda.generic_name:"{t}"',
+            f'openfda.brand_name:"{t}"',
+            f'openfda.substance_name:"{t}"',
         ]
 
     async with httpx.AsyncClient(timeout=12.0) as client:
@@ -690,6 +852,115 @@ Analiza y responde en español."""
 
     report["drug_name"] = drug_name_display
     report["sources"] = med["sources"] if raw else DEFAULT_SOURCES
+    return report
+
+@app.post("/api/drugs/gemini-sheet")
+async def gemini_sheet(req: CompatRequest):
+    """
+    Genera una ficha enriquecida de medicamento usando Gemini AI.
+    Combina datos reales de OpenFDA con análisis de Gemini.
+    """
+    raw = await fetch_openfda_raw(req.drug_name)
+    drug_name_display = req.drug_name
+    drug_context = ""
+    med = None
+
+    if raw:
+        med = openfda_to_drug(raw)
+        drug_name_display = med["name"]
+        drug_context = f"""Información oficial del medicamento (fuente: OpenFDA / FDA):
+- Nombre: {med['name']}
+- Clase farmacológica: {med['class']}
+- Dosificación: {med['dosage']}
+- Indicaciones: {med['uses'][:600]}
+- Efectos adversos conocidos: {'; '.join(med['sideEffects'][:6])}
+- Contraindicaciones: {'; '.join(med['restrictions'][:5])}
+- Advertencias: {'; '.join(med['notFor'][:5])}
+"""
+    else:
+        drug_context = f"Medicamento: {req.drug_name} (usar conocimiento general de farmacología)."
+
+    prompt = f"""Eres un sistema experto de información farmacéutica clínica.
+Genera una ficha técnica completa y detallada del siguiente medicamento en español.
+Proporciona información precisa, útil y bien estructurada.
+
+{drug_context}
+
+Medicamento consultado por el usuario: {req.drug_name}
+
+Genera la ficha completa en español con información clínica precisa y actualizada."""
+
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "nombre":              {"type": "string", "description": "Nombre oficial del medicamento"},
+            "clase_farmacologica": {"type": "string", "description": "Clase terapéutica o farmacológica"},
+            "emoji":               {"type": "string", "description": "Un único emoji representativo (ej: 💊 🩺 ❤️)"},
+            "resumen":             {"type": "string", "description": "1-2 frases que resumen la esencia del medicamento"},
+            "para_que_sirve":      {"type": "string", "description": "Indicaciones principales explicadas claramente en 2-3 frases"},
+            "como_funciona":       {"type": "string", "description": "Mecanismo de acción explicado de forma comprensible en 1-2 frases"},
+            "dosificacion_tipica": {"type": "string", "description": "Pauta posológica estándar para adultos"},
+            "efectos_secundarios": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "efecto":     {"type": "string"},
+                        "frecuencia": {"type": "string", "enum": ["muy frecuente", "frecuente", "poco frecuente", "raro"]},
+                        "gravedad":   {"type": "string", "enum": ["leve", "moderado", "grave"]}
+                    },
+                    "required": ["efecto", "frecuencia", "gravedad"]
+                }
+            },
+            "contraindicaciones":        {"type": "array", "items": {"type": "string"}},
+            "advertencias_importantes":  {"type": "array", "items": {"type": "string"}},
+            "interacciones_destacadas":  {"type": "array", "items": {"type": "string"}},
+            "poblaciones_especiales": {
+                "type": "object",
+                "properties": {
+                    "embarazo":              {"type": "string"},
+                    "ninos":                 {"type": "string"},
+                    "ancianos":              {"type": "string"},
+                    "insuficiencia_renal":   {"type": "string"},
+                    "insuficiencia_hepatica":{"type": "string"}
+                }
+            },
+            "dato_curioso":       {"type": "string", "description": "Un dato curioso o relevante sobre el medicamento"},
+            "consejos_practicos": {"type": "array", "items": {"type": "string"}, "description": "3-5 consejos prácticos para el paciente"}
+        },
+        "required": ["nombre", "clase_farmacologica", "emoji", "resumen", "para_que_sirve",
+                     "como_funciona", "dosificacion_tipica", "efectos_secundarios",
+                     "contraindicaciones", "advertencias_importantes", "interacciones_destacadas",
+                     "poblaciones_especiales", "dato_curioso", "consejos_practicos"]
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(GEMINI_URL,
+                headers={"X-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "maxOutputTokens": 7500,
+                        "responseMimeType": "application/json",
+                        "responseJsonSchema": response_schema
+                    }
+                }
+            )
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e!r}"}
+
+    if resp.status_code != 200:
+        return {"error": f"Gemini respondió con status {resp.status_code}", "detail": resp.text[:300]}
+
+    try:
+        gemini_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        report = json.loads(gemini_text)
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        return {"error": f"Error procesando respuesta de Gemini: {str(e)}", "detail": resp.text[:300]}
+
+    report["sources"] = med["sources"] if med else DEFAULT_SOURCES
     return report
 
 @app.get("/")
