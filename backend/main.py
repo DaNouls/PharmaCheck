@@ -279,6 +279,7 @@ class CompatRequest(BaseModel):
     drug_name: str
     patient_text: str
     symptom_text: str = ""
+    lang: str = "es"   # "es" | "en"
 
 
 # ─────────────────────────────────────────
@@ -424,7 +425,7 @@ def openfda_to_drug(raw: dict) -> dict:
         _first(openfda.get("brand_name")) or
         _first(openfda.get("generic_name")) or
         _first(openfda.get("substance_name")) or
-        "Desconocido"
+        "Unknown"
     )
     generic_name = _first(openfda.get("generic_name")) or name
 
@@ -440,16 +441,22 @@ def openfda_to_drug(raw: dict) -> dict:
     uses = (
         _first(raw.get("indications_and_usage"), 700) or
         _first(raw.get("purpose"), 700) or
-        "Consultar prospecto oficial para indicaciones completas."
+        "Consult the official package leaflet for complete indications."
     )
 
     # Efectos adversos
     adverse_text = _first(raw.get("adverse_reactions"), 2000)
-    side_effects = _split_to_list(adverse_text) or ["Consultar prospecto para lista completa de efectos adversos."]
+    side_effects = _split_to_list(adverse_text) or [
+        "No significant side effects recorded for this medication.",
+        "Consult the package leaflet for the complete list of adverse effects.",
+    ]
 
     # Contraindicaciones
     contra_text = _first(raw.get("contraindications"), 2000)
-    restrictions = _split_to_list(contra_text) or ["Consultar prospecto para contraindicaciones completas."]
+    restrictions = _split_to_list(contra_text) or [
+        "No important restrictions identified for this medication.",
+        "Consult the package leaflet for the complete list of contraindications.",
+    ]
 
     # Cuándo no usar — advertencias
     warnings_text = (
@@ -758,8 +765,9 @@ Información oficial del medicamento (fuente: OpenFDA / FDA):
         drug_context = f"Medicamento: {req.drug_name} (no encontrado en OpenFDA, usar conocimiento general)."
 
     # 2. Construir el prompt para Gemini
+    lang_instr = "Respond entirely in English." if req.lang == "en" else "Responde completamente en español."
     prompt = f"""Eres un sistema experto de análisis farmacéutico clínico.
-Analiza la compatibilidad del siguiente medicamento con el perfil del paciente y genera un informe médico detallado en español.
+Analiza la compatibilidad del siguiente medicamento con el perfil del paciente y genera un informe médico detallado.
 
 {drug_context}
 
@@ -769,7 +777,7 @@ Información del paciente:
 Síntomas / motivo de consulta:
 {req.symptom_text or req.drug_name}
 
-Analiza y responde en español."""
+{lang_instr}"""
 
     # Schema JSON que Gemini debe respetar estrictamente
     response_schema = {
@@ -880,15 +888,16 @@ async def gemini_sheet(req: CompatRequest):
     else:
         drug_context = f"Medicamento: {req.drug_name} (usar conocimiento general de farmacología)."
 
+    lang_instr = "Respond entirely in English." if req.lang == "en" else "Responde completamente en español."
     prompt = f"""Eres un sistema experto de información farmacéutica clínica.
-Genera una ficha técnica completa y detallada del siguiente medicamento en español.
+Genera una ficha técnica completa y detallada del siguiente medicamento.
 Proporciona información precisa, útil y bien estructurada.
 
 {drug_context}
 
 Medicamento consultado por el usuario: {req.drug_name}
 
-Genera la ficha completa en español con información clínica precisa y actualizada."""
+{lang_instr}"""
 
     response_schema = {
         "type": "object",
@@ -896,39 +905,45 @@ Genera la ficha completa en español con información clínica precisa y actuali
             "nombre":              {"type": "string", "description": "Nombre oficial del medicamento"},
             "clase_farmacologica": {"type": "string", "description": "Clase terapéutica o farmacológica"},
             "emoji":               {"type": "string", "description": "Un único emoji representativo (ej: 💊 🩺 ❤️)"},
-            "resumen":             {"type": "string", "description": "1-2 frases que resumen la esencia del medicamento"},
-            "para_que_sirve":      {"type": "string", "description": "Indicaciones principales explicadas claramente en 2-3 frases"},
-            "como_funciona":       {"type": "string", "description": "Mecanismo de acción explicado de forma comprensible en 1-2 frases"},
-            "dosificacion_tipica": {"type": "string", "description": "Pauta posológica estándar para adultos"},
+            "resumen":             {"type": "string", "description": "1 sola frase corta, máx 90 caracteres"},
+            "indicaciones":        {"type": "array", "items": {"type": "string"},
+                                    "description": "Lista de condiciones/usos (4-7 elementos, cada uno máx 3 palabras, ej: 'Dolor de cabeza', 'Fiebre', 'Inflamación articular')"},
+            "como_funciona":       {"type": "string", "description": "Mecanismo de acción, máx 75 caracteres, muy breve"},
+            "dosificacion_tipica": {"type": "string", "description": "Pauta estándar adultos, máx 60 caracteres"},
             "efectos_secundarios": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "efecto":     {"type": "string"},
+                        "efecto":     {"type": "string", "description": "Nombre del efecto, máx 4 palabras"},
                         "frecuencia": {"type": "string", "enum": ["muy frecuente", "frecuente", "poco frecuente", "raro"]},
                         "gravedad":   {"type": "string", "enum": ["leve", "moderado", "grave"]}
                     },
                     "required": ["efecto", "frecuencia", "gravedad"]
-                }
+                },
+                "description": "Máx 8 efectos secundarios"
             },
-            "contraindicaciones":        {"type": "array", "items": {"type": "string"}},
-            "advertencias_importantes":  {"type": "array", "items": {"type": "string"}},
-            "interacciones_destacadas":  {"type": "array", "items": {"type": "string"}},
+            "contraindicaciones":        {"type": "array", "items": {"type": "string"},
+                                          "description": "Máx 5 contraindicaciones, cada una máx 5 palabras"},
+            "advertencias_importantes":  {"type": "array", "items": {"type": "string"},
+                                          "description": "Máx 4 advertencias clave, cada una máx 6 palabras"},
+            "interacciones_destacadas":  {"type": "array", "items": {"type": "string"},
+                                          "description": "Máx 4 interacciones, cada una máx 5 palabras"},
             "poblaciones_especiales": {
                 "type": "object",
                 "properties": {
-                    "embarazo":              {"type": "string"},
-                    "ninos":                 {"type": "string"},
-                    "ancianos":              {"type": "string"},
-                    "insuficiencia_renal":   {"type": "string"},
-                    "insuficiencia_hepatica":{"type": "string"}
+                    "embarazo":              {"type": "string", "description": "máx 50 caracteres"},
+                    "ninos":                 {"type": "string", "description": "máx 50 caracteres"},
+                    "ancianos":              {"type": "string", "description": "máx 50 caracteres"},
+                    "insuficiencia_renal":   {"type": "string", "description": "máx 50 caracteres"},
+                    "insuficiencia_hepatica":{"type": "string", "description": "máx 50 caracteres"}
                 }
             },
-            "dato_curioso":       {"type": "string", "description": "Un dato curioso o relevante sobre el medicamento"},
-            "consejos_practicos": {"type": "array", "items": {"type": "string"}, "description": "3-5 consejos prácticos para el paciente"}
+            "dato_curioso":       {"type": "string", "description": "Dato curioso breve, máx 110 caracteres"},
+            "consejos_practicos": {"type": "array", "items": {"type": "string"},
+                                   "description": "3-4 consejos, cada uno máx 8 palabras"}
         },
-        "required": ["nombre", "clase_farmacologica", "emoji", "resumen", "para_que_sirve",
+        "required": ["nombre", "clase_farmacologica", "emoji", "resumen", "indicaciones",
                      "como_funciona", "dosificacion_tipica", "efectos_secundarios",
                      "contraindicaciones", "advertencias_importantes", "interacciones_destacadas",
                      "poblaciones_especiales", "dato_curioso", "consejos_practicos"]
