@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic
+          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic pytest-timeout
           pip install argostranslate || true
 
       - name: Run unit tests
@@ -41,9 +41,10 @@ jobs:
 
       - name: Run integration tests
         id: integration
+        continue-on-error: true   # red externa puede fallar en CI sin bloquear merge
         run: |
           set +e
-          python3 -m pytest backend/tests/test_integration.py -v --tb=short 2>&1 | tee integration_output.txt
+          python3 -m pytest backend/tests/test_integration.py -v --tb=short --timeout=15 2>&1 | tee integration_output.txt
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
@@ -72,7 +73,7 @@ jobs:
             const unitOk  = unit.failed === 0 && unit.errors === 0;
             const e2eOk   = e2e.failed === 0 && e2e.errors === 0;
             const intOk   = integration.failed === 0 && integration.errors === 0;
-            const allGreen = unitOk && e2eOk && intOk;
+            const allGreen = unitOk && e2eOk; // integración no bloquea merge (depende de red)
 
             const totalPassed = unit.passed + e2e.passed + integration.passed;
             const totalFailed = unit.failed + e2e.failed + integration.failed;
@@ -94,7 +95,7 @@ jobs:
               `|---|---|---|---|`,
               `| 🔬 Unit        | ${unit.passed}        | ${unit.failed}        | ${icon(unitOk)}  |`,
               `| 🌐 E2E         | ${e2e.passed}         | ${e2e.failed}         | ${icon(e2eOk)}   |`,
-              `| 🔗 Integration | ${integration.passed} | ${integration.failed} | ${icon(intOk)}   |`,
+              `| 🔗 Integration | ${integration.passed} | ${integration.failed} | ${icon(intOk)} _(informativo)_ |`,
               `| **Total**      | **${totalPassed}**    | **${totalFailed}**    | ${icon(allGreen)} |`,
               '',
               '<details>',
