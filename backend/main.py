@@ -4,6 +4,7 @@ Fuente principal de datos: OpenFDA Drug Label API
 https://open.fda.gov/apis/drug/label/
 """
 
+import os
 import re
 import json
 import asyncio
@@ -25,7 +26,7 @@ app.add_middleware(
 )
 
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
-GEMINI_KEY = "AIzaSyBpsVb4tyrRVW_p0obG-c-sJje90Huh5ZI"
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
