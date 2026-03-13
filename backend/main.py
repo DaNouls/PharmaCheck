@@ -525,6 +525,215 @@ def fuzzy_resolve_drug_name(query: str) -> str:
     return query
 
 
+# FDA generic name → nombre español preferido
+SPANISH_NAMES: dict[str, str] = {
+    "acetaminophen":            "Paracetamol",
+    "ibuprofen":                "Ibuprofeno",
+    "aspirin":                  "Aspirina",
+    "naproxen":                 "Naproxeno",
+    "diclofenac":               "Diclofenaco",
+    "celecoxib":                "Celecoxib",
+    "etoricoxib":               "Etoricoxib",
+    "meloxicam":                "Meloxicam",
+    "ketorolac":                "Ketorolaco",
+    "metamizole":               "Metamizol",
+    "tramadol":                 "Tramadol",
+    "codeine":                  "Codeína",
+    "morphine":                 "Morfina",
+    "amoxicillin":              "Amoxicilina",
+    "amoxicillin clavulanate":  "Amoxicilina-Clavulánico",
+    "azithromycin":             "Azitromicina",
+    "clarithromycin":           "Claritromicina",
+    "ciprofloxacin":            "Ciprofloxacino",
+    "levofloxacin":             "Levofloxacino",
+    "doxycycline":              "Doxiciclina",
+    "cephalexin":               "Cefalexina",
+    "cefuroxime":               "Cefuroxima",
+    "ceftriaxone":              "Ceftriaxona",
+    "metronidazole":            "Metronidazol",
+    "trimethoprim sulfamethoxazole": "Cotrimoxazol",
+    "nitrofurantoin":           "Nitrofurantoína",
+    "clindamycin":              "Clindamicina",
+    "vancomycin":               "Vancomicina",
+    "fluconazole":              "Fluconazol",
+    "itraconazole":             "Itraconazol",
+    "terbinafine":              "Terbinafina",
+    "acyclovir":                "Aciclovir",
+    "valacyclovir":             "Valaciclovir",
+    "oseltamivir":              "Oseltamivir",
+    "metformin":                "Metformina",
+    "sitagliptin":              "Sitagliptina",
+    "empagliflozin":            "Empagliflozina",
+    "dapagliflozin":            "Dapagliflozina",
+    "liraglutide":              "Liraglutida",
+    "semaglutide":              "Semaglutida",
+    "glipizide":                "Glipizida",
+    "gliclazide":               "Gliclazida",
+    "pioglitazone":             "Pioglitazona",
+    "insulin glargine":         "Insulina Glargina",
+    "insulin aspart":           "Insulina Aspart",
+    "insulin lispro":           "Insulina Lispro",
+    "omeprazole":               "Omeprazol",
+    "pantoprazole":             "Pantoprazol",
+    "lansoprazole":             "Lansoprazol",
+    "esomeprazole":             "Esomeprazol",
+    "famotidine":               "Famotidina",
+    "metoclopramide":           "Metoclopramida",
+    "ondansetron":              "Ondansetrón",
+    "loperamide":               "Loperamida",
+    "lactulose":                "Lactulosa",
+    "atorvastatin":             "Atorvastatina",
+    "simvastatin":              "Simvastatina",
+    "rosuvastatin":             "Rosuvastatina",
+    "pravastatin":              "Pravastatina",
+    "amlodipine":               "Amlodipino",
+    "enalapril":                "Enalapril",
+    "lisinopril":               "Lisinopril",
+    "ramipril":                 "Ramipril",
+    "losartan":                 "Losartán",
+    "valsartan":                "Valsartán",
+    "bisoprolol":               "Bisoprolol",
+    "metoprolol":               "Metoprolol",
+    "carvedilol":               "Carvedilol",
+    "furosemide":               "Furosemida",
+    "hydrochlorothiazide":      "Hidroclorotiazida",
+    "spironolactone":           "Espironolactona",
+    "digoxin":                  "Digoxina",
+    "amiodarone":               "Amiodarona",
+    "clopidogrel":              "Clopidogrel",
+    "ticagrelor":               "Ticagrelor",
+    "acenocoumarol":            "Acenocumarol",
+    "warfarin":                 "Warfarina",
+    "apixaban":                 "Apixabán",
+    "rivaroxaban":              "Rivaroxabán",
+    "dabigatran":               "Dabigatrán",
+    "enoxaparin":               "Enoxaparina",
+    "heparin":                  "Heparina",
+    "alprazolam":               "Alprazolam",
+    "lorazepam":                "Lorazepam",
+    "diazepam":                 "Diazepam",
+    "clonazepam":               "Clonazepam",
+    "sertraline":               "Sertralina",
+    "fluoxetine":               "Fluoxetina",
+    "escitalopram":             "Escitalopram",
+    "citalopram":               "Citalopram",
+    "paroxetine":               "Paroxetina",
+    "venlafaxine":              "Venlafaxina",
+    "duloxetine":               "Duloxetina",
+    "mirtazapine":              "Mirtazapina",
+    "amitriptyline":            "Amitriptilina",
+    "pregabalin":               "Pregabalina",
+    "gabapentin":               "Gabapentina",
+    "quetiapine":               "Quetiapina",
+    "olanzapine":               "Olanzapina",
+    "risperidone":              "Risperidona",
+    "aripiprazole":             "Aripiprazol",
+    "haloperidol":              "Haloperidol",
+    "lithium":                  "Litio",
+    "carbamazepine":            "Carbamazepina",
+    "valproate":                "Valproato",
+    "levetiracetam":            "Levetiracetam",
+    "lamotrigine":              "Lamotrigina",
+    "topiramate":               "Topiramato",
+    "phenytoin":                "Fenitoína",
+    "zolpidem":                 "Zolpidem",
+    "melatonin":                "Melatonina",
+    "methylphenidate":          "Metilfenidato",
+    "albuterol":                "Salbutamol",
+    "budesonide":               "Budesonida",
+    "fluticasone":              "Fluticasona",
+    "tiotropium":               "Tiotropio",
+    "montelukast":              "Montelukast",
+    "levothyroxine":            "Levotiroxina",
+    "prednisone":               "Prednisona",
+    "prednisolone":             "Prednisolona",
+    "dexamethasone":            "Dexametasona",
+    "methylprednisolone":       "Metilprednisolona",
+    "hydrocortisone":           "Hidrocortisona",
+    "methotrexate":             "Metotrexato",
+    "azathioprine":             "Azatioprina",
+    "hydroxychloroquine":       "Hidroxicloroquina",
+    "isotretinoin":             "Isotretinoína",
+    "finasteride":              "Finasterida",
+    "sildenafil":               "Sildenafilo",
+    "tadalafil":                "Tadalafilo",
+    "alendronate":              "Alendronato",
+    "calcium carbonate":        "Carbonato de calcio",
+    "cholecalciferol":          "Colecalciferol",
+    "vitamin d":                "Vitamina D",
+}
+
+# Clases farmacológicas en español (orden importa: más específico primero)
+CLASS_TRANSLATIONS_ES: list[tuple[str, str]] = [
+    ("nonsteroidal anti-inflammatory", "Antiinflamatorio no esteroideo (AINE)"),
+    ("proton pump inhibitor",          "Inhibidor de la bomba de protones"),
+    ("h2 blocker",                     "Bloqueante H2"),
+    ("angiotensin receptor blocker",   "Antagonista del receptor de angiotensina II"),
+    ("ace inhibitor",                  "Inhibidor de la ECA"),
+    ("beta blocker",                   "Betabloqueante"),
+    ("calcium channel blocker",        "Bloqueante de los canales de calcio"),
+    ("diuretic",                       "Diurético"),
+    ("anticoagulant",                  "Anticoagulante"),
+    ("antithrombotic",                 "Antitrombótico"),
+    ("antiplatelet",                   "Antiagregante plaquetario"),
+    ("antihypertensive",               "Antihipertensivo"),
+    ("statin",                         "Estatina (inhibidor de la HMG-CoA reductasa)"),
+    ("hmg-coa reductase inhibitor",    "Estatina (inhibidor de la HMG-CoA reductasa)"),
+    ("antidiabetic",                   "Antidiabético"),
+    ("hypoglycemic",                   "Hipoglucemiante"),
+    ("biguanide",                      "Biguanida"),
+    ("insulin",                        "Insulina"),
+    ("glp-1",                          "Agonista del receptor GLP-1"),
+    ("sglt2",                          "Inhibidor SGLT2"),
+    ("ssri",                           "ISRS (inhibidor selectivo de la recaptación de serotonina)"),
+    ("serotonin-norepinephrine",       "ISRSN (inhibidor de la recaptación de serotonina-noradrenalina)"),
+    ("antidepressant",                 "Antidepresivo"),
+    ("antianxiety",                    "Ansiolítico"),
+    ("benzodiazepine",                 "Benzodiacepina"),
+    ("antipsychotic",                  "Antipsicótico"),
+    ("mood stabilizer",                "Estabilizador del estado de ánimo"),
+    ("anticonvulsant",                 "Anticonvulsivante"),
+    ("antiepileptic",                  "Antiepiléptico"),
+    ("opioid",                         "Opioide"),
+    ("analgesic",                      "Analgésico"),
+    ("antipyretic",                    "Antipirético"),
+    ("antibiotic",                     "Antibiótico"),
+    ("antibacterial",                  "Antibacteriano"),
+    ("antimicrobial",                  "Antimicrobiano"),
+    ("macrolide",                      "Macrólido"),
+    ("penicillin",                     "Penicilina"),
+    ("cephalosporin",                  "Cefalosporina"),
+    ("fluoroquinolone",                "Fluoroquinolona"),
+    ("tetracycline",                   "Tetraciclina"),
+    ("antifungal",                     "Antifúngico"),
+    ("antiviral",                      "Antiviral"),
+    ("antiretroviral",                 "Antirretroviral"),
+    ("corticosteroid",                 "Corticoesteroide"),
+    ("steroid",                        "Corticoesteroide"),
+    ("bronchodilator",                 "Broncodilatador"),
+    ("antihistamine",                  "Antihistamínico"),
+    ("immunosuppressant",              "Inmunosupresor"),
+    ("thyroid hormone",                "Hormona tiroidea"),
+    ("hypnotic",                       "Hipnótico"),
+    ("sedative",                       "Sedante"),
+    ("antiparkinsonian",               "Antiparkinsónico"),
+    ("antineoplastic",                 "Antineoplásico"),
+    ("cardiovascular agent",           "Agente cardiovascular"),
+    ("pain reliever",                  "Analgésico"),
+    ("pain",                           "Analgésico"),
+    ("fever reducer",                  "Antipirético"),
+]
+
+
+def translate_class_to_es(drug_class: str) -> str:
+    """Traduce la clase farmacológica al español usando el diccionario estático."""
+    c = drug_class.lower()
+    for en_key, es_val in CLASS_TRANSLATIONS_ES:
+        if en_key in c:
+            return es_val
+    return drug_class
+
+
 DEFAULT_SOURCES = [
     {
         "label": "CIMA AEMPS",
@@ -559,9 +768,8 @@ class CompatRequest(BaseModel):
 
 async def enrich_drug_data(med: dict, lang: str) -> dict:
     """
-    Enriquece la ficha del medicamento con Gemini:
-    - Si lang=es: traduce todos los campos al español (nombre, clase, usos, etc.)
-    - En ambos idiomas: genera un dato curioso real sobre el medicamento.
+    Enriquece la ficha con Gemini (solo texto libre + dato curioso).
+    Nombre y clase ya están traducidos estáticamente antes de llamar aquí.
     """
     if not GEMINI_KEY:
         return med
@@ -570,30 +778,19 @@ async def enrich_drug_data(med: dict, lang: str) -> dict:
 
     if lang == "es":
         payload = {
-            "name":         med.get("name", ""),
-            "class":        med.get("class", ""),
-            "uses":         med.get("uses", "")[:600],
-            "dosage":       med.get("dosage", "")[:200],
-            "sideEffects":  med.get("sideEffects", [])[:6],
-            "restrictions": med.get("restrictions", [])[:5],
-            "notFor":       med.get("notFor", [])[:5],
+            "uses":   med.get("uses", "")[:500],
+            "dosage": med.get("dosage", "")[:200],
         }
         prompt = (
-            f"Eres un experto farmacéutico y traductor médico.\n"
-            f"1. Traduce todos los campos del siguiente JSON del inglés al español. "
-            f"Mantén los nombres propios de medicamentos (ej: 'Ibuprofen' se queda como 'Ibuprofeno'). "
-            f"Sé preciso en terminología médica.\n"
-            f"2. Añade un campo 'funFact' con un dato curioso REAL y verificado sobre {drug_name} "
-            f"en español (1-2 frases interesantes, científicas o históricas).\n"
-            f"Devuelve SOLO un JSON con los mismos campos más 'funFact'.\n\n"
+            f"Eres un traductor médico. Traduce al español (terminología precisa). "
+            f"Añade 'funFact': dato curioso REAL sobre {drug_name} en español (1-2 frases). "
+            f"Devuelve SOLO JSON con los mismos campos más 'funFact'.\n\n"
             + json.dumps(payload, ensure_ascii=False)
         )
     else:
         prompt = (
-            f"You are a pharmaceutical expert.\n"
-            f"Generate a real, verified, interesting scientific or historical fun fact about {drug_name} "
-            f"in English (1-2 sentences).\n"
-            f"Return ONLY a JSON object with a single key 'funFact'."
+            f"Pharmaceutical expert: write a real, verified fun fact about {drug_name} "
+            f"in English (1-2 sentences). Return ONLY JSON: {{\"funFact\": \"...\"}}"
         )
 
     try:
@@ -605,23 +802,22 @@ async def enrich_drug_data(med: dict, lang: str) -> dict:
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.4,
-                        "maxOutputTokens": 2000,
+                        "maxOutputTokens": 800,
                         "responseMimeType": "application/json",
                     }
                 }
             )
         if resp.status_code == 200:
-            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            result = json.loads(raw_text)
+            result = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
             med = {**med}
             if lang == "es":
-                for key in ["name", "class", "uses", "dosage", "sideEffects", "restrictions", "notFor"]:
-                    if key in result and result[key]:
+                for key in ["uses", "dosage"]:
+                    if result.get(key):
                         med[key] = result[key]
             if result.get("funFact"):
                 med["fact"] = result["funFact"]
     except Exception:
-        pass  # fallback: devolver datos originales en inglés si falla
+        pass
 
     return med
 
@@ -1107,14 +1303,32 @@ def build_explanation(verdict: str, med_name: str, suit_text: str) -> str:
 async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("es")):
     """
     Busca un medicamento en OpenFDA y devuelve su ficha estructurada.
-    Si lang=es, traduce los campos de texto al español.
+    - Nombre y clase se traducen con diccionarios estáticos (siempre fiable).
+    - uses/dosage y funFact se enriquecen con Gemini cuando está disponible.
     """
     raw = await fetch_openfda_raw(query)
-    if raw:
-        drug = openfda_to_drug(raw)
-        drug = await enrich_drug_data(drug, lang)
-        return {"found": True, "drug": drug}
-    return {"found": False, "drug": None}
+    if not raw:
+        return {"found": False, "drug": None}
+
+    drug = openfda_to_drug(raw)
+
+    if lang == "es":
+        # 1. Nombre: preferir nombre español conocido sobre la marca FDA
+        openfda_section = raw.get("openfda", {})
+        generic_fda = (openfda_section.get("generic_name") or [""])[0].lower().strip()
+        if generic_fda in SPANISH_NAMES:
+            drug["name"] = SPANISH_NAMES[generic_fda]
+        elif query.lower().strip() in NAME_TRANSLATIONS:
+            # Si el usuario buscó en español, usar esa forma como nombre
+            drug["name"] = query.strip().title()
+
+        # 2. Clase farmacológica: diccionario estático
+        drug["class"] = translate_class_to_es(drug["class"])
+
+    # 3. uses/dosage y funFact vía Gemini (falla silenciosamente si no hay cuota)
+    drug = await enrich_drug_data(drug, lang)
+
+    return {"found": True, "drug": drug}
 
 
 @app.post("/api/drugs/compatibility")
