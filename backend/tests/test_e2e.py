@@ -1,7 +1,7 @@
 """
 PharmaCheck — End-to-end tests
 Ejercitan el flujo HTTP completo a través de FastAPI (sin red externa).
-OpenFDA y Gemini se mockean; Argos Translate también (sin modelo instalado).
+OpenFDA y Gemini se mockean; traducción via deep-translator (Google).
 Run:  python3 -m pytest backend/tests/test_e2e.py -v -m e2e
 """
 
@@ -13,12 +13,7 @@ from unittest.mock import patch, AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-with __import__("unittest.mock", fromlist=["patch"]).patch.dict("sys.modules", {
-    "argostranslate": MagicMock(),
-    "argostranslate.package": MagicMock(),
-    "argostranslate.translate": MagicMock(),
-}):
-    import backend.main as main_module
+import backend.main as main_module
 
 from fastapi.testclient import TestClient
 

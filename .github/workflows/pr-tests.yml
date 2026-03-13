@@ -22,8 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic pytest-timeout
-          pip install argostranslate || true
+          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic pytest-timeout deep-translator
 
       - name: Run unit tests
         id: unit

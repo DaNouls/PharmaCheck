@@ -11,16 +11,9 @@ from unittest.mock import patch, AsyncMock
 # Add backend to path so we can import main without running the server
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Patch argostranslate before import to avoid loading the model in tests
 import unittest.mock
-with unittest.mock.patch.dict("sys.modules", {
-    "argostranslate": unittest.mock.MagicMock(),
-    "argostranslate.package": unittest.mock.MagicMock(),
-    "argostranslate.translate": unittest.mock.MagicMock(),
-}):
-    import importlib
-    import backend.main as main_module
-    from backend.main import (
+import backend.main as main_module
+from backend.main import (
         fuzzy_resolve_drug_name,
         translate_class_to_es,
         openfda_to_drug,

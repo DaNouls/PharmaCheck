@@ -7,17 +7,11 @@ Run:  python3 -m pytest backend/tests/test_integration.py -v -m integration
 import sys
 import os
 import pytest
-import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-with unittest.mock.patch.dict("sys.modules", {
-    "argostranslate": unittest.mock.MagicMock(),
-    "argostranslate.package": unittest.mock.MagicMock(),
-    "argostranslate.translate": unittest.mock.MagicMock(),
-}):
-    import backend.main as main_module
-    from backend.main import fetch_openfda_raw, openfda_to_drug
+import backend.main as main_module
+from backend.main import fetch_openfda_raw, openfda_to_drug
 
 pytestmark = pytest.mark.integration
 
