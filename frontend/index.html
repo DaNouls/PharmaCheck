@@ -16,6 +16,7 @@
   </div>
   <div class="header-divider"></div>
   <span class="header-title">PharmaCheck</span>
+  <button id="lang-btn" class="lang-btn">EN</button>
 </header>
 
 <!-- ══════════════ MAIN ══════════════ -->
@@ -23,29 +24,29 @@
   <!-- Initial Screen -->
   <div id="initial-screen">
     <div class="hero">
-      <h1>Evaluación de medicamentos</h1>
-      <p>Consulta la ficha técnica de cualquier fármaco o analiza su compatibilidad con un paciente en segundos.</p>
+      <h1 data-i18n="hero_title">Evaluación de medicamentos</h1>
+      <p data-i18n="hero_sub">Consulta la ficha técnica de cualquier fármaco o analiza su compatibilidad con un paciente en segundos.</p>
     </div>
 
     <div id="search-area">
       <div class="input-row" id="input-row">
         <!-- Med input -->
         <div class="input-group has-label" id="med-group">
-          <label>💊 Medicamento</label>
-          <input type="text" id="med-input" placeholder="Nombre del medicamento" autocomplete="off"/>
+          <label data-i18n="label_med">💊 Medicamento</label>
+          <input type="text" id="med-input" data-i18n-placeholder="ph_med" placeholder="Nombre del medicamento" autocomplete="off"/>
         </div>
 
         <!-- Patient input (hidden by default) -->
         <div class="patient-input-wrap" id="patient-wrap">
           <div class="input-group has-label">
-            <label>🧑‍⚕️ Información del paciente</label>
-            <textarea id="patient-input" placeholder="síntomas, condiciones, edad, embarazo, alergias…"></textarea>
+            <label data-i18n="label_patient">🧑‍⚕️ Información del paciente</label>
+            <textarea id="patient-input" data-i18n-placeholder="ph_patient" placeholder="síntomas, condiciones, edad, embarazo, alergias…"></textarea>
           </div>
         </div>
 
         <!-- Toggle -->
         <div class="toggle-wrap">
-          <div class="toggle-label">Concordancia</div>
+          <div class="toggle-label"><span id="toggle-label-text" data-i18n="toggle_label">Concordancia</span></div>
           <button id="toggle-btn" title="Activar modo Concordancia de medicamento" aria-pressed="false">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <polyline points="3,9 7,13 15,5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -72,7 +73,7 @@
 </main>
 
 <div class="ai-counter" id="ai-counter">
-  <span>✨ IA</span>
+  <span id="ai-label" data-i18n="ai_label">✨ IA</span>
   <span class="ai-count" id="ai-count">20</span>
   <span style="color:var(--border)">/ 20</span>
   <div class="ai-bar"><div class="ai-bar-fill" id="ai-bar-fill"></div></div>

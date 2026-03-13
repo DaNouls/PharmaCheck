@@ -60,6 +60,26 @@ header {
   -webkit-text-fill-color: transparent;
 }
 
+/* ── LANG TOGGLE ── */
+.lang-btn {
+  margin-left: auto;
+  padding: 6px 18px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  border: 2px solid var(--blue);
+  background: transparent;
+  color: var(--blue);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.lang-btn:hover {
+  background: var(--blue);
+  color: var(--white);
+}
+
 /* ── MAIN ── */
 main {
   display: flex;
@@ -328,6 +348,19 @@ main {
 .med-section ul { padding-left: 18px; }
 .med-section ul li { margin-bottom: 4px; }
 
+.no-data-note {
+  font-size: 0.88rem;
+  color: var(--gray);
+  font-style: italic;
+  margin-bottom: 6px;
+}
+.consult-note {
+  font-size: 0.8rem;
+  color: var(--gray);
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
 .fact-box {
   grid-column: 1 / -1;
   padding: 20px 28px;
@@ -337,9 +370,11 @@ main {
   align-items: flex-start;
   gap: 12px;
 }
-.fact-box .fact-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 1px; }
+.fact-box .fact-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
 .fact-box p { font-size: 0.9rem; color: var(--blue-dark); line-height: 1.6; }
 .fact-box strong { font-weight: 700; }
+.fact-section-label { margin-bottom: 4px; }
+.fact-text { margin-top: 2px; }
 
 /* ── COMPAT CARD (Mode 2) ── */
 .compat-card {
