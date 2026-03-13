@@ -26,7 +26,7 @@ app.add_middleware(
 
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 GEMINI_KEY = "AIzaSyBpsVb4tyrRVW_p0obG-c-sJje90Huh5ZI"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
