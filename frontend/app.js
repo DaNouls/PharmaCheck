@@ -4,7 +4,7 @@
  * Este archivo solo maneja UI, rendering y llamadas a la API.
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 const AI_DAILY_LIMIT = 20;
 
 let compatMode = false;

@@ -694,20 +694,6 @@ Analiza y responde en español."""
     report["sources"] = med["sources"] if raw else DEFAULT_SOURCES
     return report
 
-@app.get("/")
-async def root():
-    return {
-        "app": "PharmaCheck API",
-        "version": "2.0.0",
-        "data_source": "OpenFDA Drug Label API (open.fda.gov)",
-        "endpoints": [
-            "GET  /api/drugs/search?query=ibuprofen",
-            "POST /api/drugs/compatibility  {drug_name, patient_text, symptom_text}",
-            "GET  /api/drugs/external?query=ibuprofen",
-            "GET  /docs  (Swagger UI)",
-        ]
-    }
-
-_FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 if _FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
