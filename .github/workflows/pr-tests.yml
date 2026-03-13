@@ -22,102 +22,108 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic
-          pip install argostranslate || true   # opcional, mockeado en tests
+          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic pytest-timeout
+          pip install argostranslate || true
 
-      - name: Run tests
-        id: run_tests
+      - name: Run unit tests
+        id: unit
         run: |
-          python3 -m pytest backend/tests/ -v --tb=short 2>&1 | tee test_output.txt
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set +e
+          python3 -m pytest backend/tests/test_main.py -v --tb=short 2>&1 | tee unit_output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Parse test results
-        id: results
-        if: always()
+      - name: Run e2e tests
+        id: e2e
         run: |
-          TOTAL=$(grep -E "^(PASSED|FAILED|ERROR)" test_output.txt | wc -l | tr -d ' ')
-          PASSED=$(grep -c "^.*PASSED" test_output.txt || echo 0)
-          FAILED=$(grep -c "^.*FAILED" test_output.txt || echo 0)
-          ERRORS=$(grep -c "^.*ERROR" test_output.txt || echo 0)
-          SUMMARY=$(grep -E "passed|failed|error" test_output.txt | tail -1)
+          set +e
+          python3 -m pytest backend/tests/test_e2e.py -v --tb=short 2>&1 | tee e2e_output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
-          echo "total=$TOTAL"   >> $GITHUB_OUTPUT
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+      - name: Run integration tests
+        id: integration
+        continue-on-error: true   # red externa puede fallar en CI sin bloquear merge
+        run: |
+          set +e
+          python3 -m pytest backend/tests/test_integration.py -v --tb=short --timeout=15 2>&1 | tee integration_output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       - name: Post PR comment
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const passed  = parseInt('${{ steps.results.outputs.passed }}')  || 0;
-            const failed  = parseInt('${{ steps.results.outputs.failed }}')  || 0;
-            const errors  = parseInt('${{ steps.results.outputs.errors }}')  || 0;
-            const summary = `${{ steps.results.outputs.summary }}`;
-            const exitCode = '${{ steps.run_tests.outputs.exit_code }}';
+            const fs = require('fs');
 
-            const allGreen = failed === 0 && errors === 0;
+            function parseOutput(file) {
+              let text = '';
+              try { text = fs.readFileSync(file, 'utf8'); } catch { return { passed: 0, failed: 0, errors: 0, lines: '' }; }
+              const passed = (text.match(/\bPASSED\b/g) || []).length;
+              const failed = (text.match(/\bFAILED\b/g) || []).length;
+              const errors = (text.match(/\bERROR\b/g) || []).length;
+              const lines = text.split('\n')
+                .filter(l => /PASSED|FAILED|ERROR|=====/.test(l))
+                .join('\n');
+              return { passed, failed, errors, lines };
+            }
 
-            const header = allGreen
-              ? `## ✅ Tests pasando — apto para merge`
-              : `## ❌ Tests fallando — NO mergear`;
+            const unit        = parseOutput('unit_output.txt');
+            const e2e         = parseOutput('e2e_output.txt');
+            const integration = parseOutput('integration_output.txt');
+
+            const unitOk  = unit.failed === 0 && unit.errors === 0;
+            const e2eOk   = e2e.failed === 0 && e2e.errors === 0;
+            const intOk   = integration.failed === 0 && integration.errors === 0;
+            const allGreen = unitOk && e2eOk; // integración no bloquea merge (depende de red)
+
+            const totalPassed = unit.passed + e2e.passed + integration.passed;
+            const totalFailed = unit.failed + e2e.failed + integration.failed;
+
+            const header  = allGreen
+              ? '## ✅ Tests pasando — apto para merge'
+              : '## ❌ Tests fallando — NO mergear';
 
             const verdict = allGreen
-              ? `> **Todos los tests han pasado.** Esta PR es segura para hacer merge a \`main\`.`
-              : `> **Hay tests fallando.** Revisar los errores antes de mergear a \`main\`.`;
+              ? '> **Todos los tests han pasado.** Esta PR es segura para hacer merge a `main`.'
+              : '> **Hay tests fallando.** Revisar los errores antes de mergear a `main`.';
 
-            const badge = allGreen
-              ? `![tests](https://img.shields.io/badge/tests-${passed}%20passed-brightgreen)`
-              : `![tests](https://img.shields.io/badge/tests-${failed}%20failed-red)`;
-
-            // Read raw test output for the details block
-            const fs = require('fs');
-            let rawOutput = '';
-            try {
-              rawOutput = fs.readFileSync('test_output.txt', 'utf8')
-                .split('\n')
-                .filter(l => l.match(/PASSED|FAILED|ERROR|=====|-----/))
-                .join('\n');
-            } catch(e) { rawOutput = 'No se pudo leer la salida.'; }
+            const icon = (ok) => ok ? '✅' : '❌';
 
             const body = [
-              header,
-              '',
-              verdict,
-              '',
-              `${badge}`,
-              '',
-              `| | Resultado |`,
-              `|---|---|`,
-              `| ✅ Passed  | **${passed}** |`,
-              `| ❌ Failed  | **${failed}** |`,
-              `| 💥 Errors  | **${errors}** |`,
-              `| 📋 Resumen | \`${summary}\` |`,
+              header, '',
+              verdict, '',
+              `| Suite | Passed | Failed | Estado |`,
+              `|---|---|---|---|`,
+              `| 🔬 Unit        | ${unit.passed}        | ${unit.failed}        | ${icon(unitOk)}  |`,
+              `| 🌐 E2E         | ${e2e.passed}         | ${e2e.failed}         | ${icon(e2eOk)}   |`,
+              `| 🔗 Integration | ${integration.passed} | ${integration.failed} | ${icon(intOk)} _(informativo)_ |`,
+              `| **Total**      | **${totalPassed}**    | **${totalFailed}**    | ${icon(allGreen)} |`,
               '',
               '<details>',
-              '<summary>Ver detalle de tests</summary>',
+              '<summary>🔬 Unit tests — detalle</summary>',
+              '', '```', unit.lines, '```', '',
+              '</details>',
               '',
-              '```',
-              rawOutput,
-              '```',
+              '<details>',
+              '<summary>🌐 E2E tests — detalle</summary>',
+              '', '```', e2e.lines, '```', '',
+              '</details>',
               '',
+              '<details>',
+              '<summary>🔗 Integration tests — detalle</summary>',
+              '', '```', integration.lines, '```', '',
               '</details>',
               '',
               `---`,
-              `*Ejecutado automáticamente por [PR Tests](../actions) · commit \`${{ github.sha }}`.slice(0,7) + \`\`*`,
+              `*Ejecutado por [PR Tests](../../actions/runs/${context.runId}) · commit \`${context.sha.slice(0,7)}\`*`,
             ].join('\n');
 
-            // Delete previous bot comment if exists (keep PR clean)
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
             for (const c of comments) {
-              if (c.user.type === 'Bot' && c.body.includes('Tests pasando') ||
-                  c.user.type === 'Bot' && c.body.includes('Tests fallando')) {
+              if (c.user.type === 'Bot' && (c.body.includes('Tests pasando') || c.body.includes('Tests fallando'))) {
                 await github.rest.issues.deleteComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
