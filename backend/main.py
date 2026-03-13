@@ -11,8 +11,6 @@ import asyncio
 import httpx
 from difflib import get_close_matches
 from typing import Optional, List
-import argostranslate.package
-import argostranslate.translate
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -22,35 +20,19 @@ from pydantic import BaseModel
 app = FastAPI(title="PharmaCheck API", version="2.0.0")
 
 # ─────────────────────────────────────────
-# LIBRETRANSLATE (Argos Translate) — local, sin API externa
+# TRADUCCIÓN — stub ligero (sin dependencias pesadas)
 # ─────────────────────────────────────────
 
 _lt_ready = False
 
 
 def _init_libretranslate():
-    """Verifica que el modelo en→es esté instalado y marca el servicio como listo."""
-    global _lt_ready
-    try:
-        pkgs = argostranslate.package.get_installed_packages()
-        has_en_es = any(p.from_code == "en" and p.to_code == "es" for p in pkgs)
-        if not has_en_es:
-            print("[LibreTranslate] Modelo en→es no encontrado. Ejecuta: ltmanage install en es")
-        else:
-            _lt_ready = True
-            print("[LibreTranslate] ✓ Modelo en→es listo")
-    except Exception as e:
-        print(f"[LibreTranslate] Error al inicializar: {e}")
+    print("[Translate] Traducción local desactivada — se devuelve texto original.")
 
 
 def translate_en_es(text: str) -> str:
-    """Traduce texto del inglés al español usando Argos Translate (local, sin red)."""
-    if not _lt_ready or not text:
-        return text
-    try:
-        return argostranslate.translate.translate(text, "en", "es")
-    except Exception:
-        return text
+    """Devuelve el texto sin traducir (stub ligero)."""
+    return text
 
 
 @app.on_event("startup")
