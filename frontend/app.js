@@ -11,6 +11,26 @@ let compatMode = false;
 let currentLang = localStorage.getItem('pharma_lang') || 'es';
 
 // ─────────────────────────────────────────
+// THEME
+// ─────────────────────────────────────────
+
+let currentTheme = localStorage.getItem('pharma_theme') || 'light';
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+  localStorage.setItem('pharma_theme', currentTheme);
+  applyTheme();
+}
+
+applyTheme();
+
+// ─────────────────────────────────────────
 // I18N
 // ─────────────────────────────────────────
 
@@ -682,6 +702,7 @@ async function handleAction() {
 document.getElementById('toggle-btn').addEventListener('click', toggleMode);
 document.getElementById('action-btn').addEventListener('click', handleAction);
 document.getElementById('lang-btn').addEventListener('click', toggleLang);
+document.getElementById('theme-btn').addEventListener('click', toggleTheme);
 
 document.getElementById('med-input').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !compatMode) handleAction();
