@@ -9,6 +9,7 @@ import re
 import json
 import asyncio
 import httpx
+from difflib import get_close_matches
 from typing import Optional, List
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,81 +32,498 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-f
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
-    # Analgésicos / Antipiréticos
-    "paracetamol": "acetaminophen",
-    "acetaminofén": "acetaminophen",
-    "gelocatil": "acetaminophen",
-    "efferalgan": "acetaminophen",
-    "termalgín": "acetaminophen",
-    # AINEs
-    "ibuprofeno": "ibuprofen",
-    "aspirina": "aspirin",
-    "ácido acetilsalicílico": "aspirin",
-    "acido acetilsalicilico": "aspirin",
-    "diclofenaco": "diclofenac",
-    "naproxeno": "naproxen",
-    "metamizol": "metamizole",
-    "dipirona": "metamizole",
-    # Antibióticos
-    "amoxicilina": "amoxicillin",
-    "azitromicina": "azithromycin",
-    "claritromicina": "clarithromycin",
-    "ciprofloxacino": "ciprofloxacin",
-    "levofloxacino": "levofloxacin",
-    "doxiciclina": "doxycycline",
-    "cefalexina": "cephalexin",
-    "amoxicilina clavulánico": "amoxicillin clavulanate",
-    "augmentine": "amoxicillin clavulanate",
-    # Antidiabéticos
-    "metformina": "metformin",
-    "sitagliptina": "sitagliptin",
-    "empagliflozina": "empagliflozin",
-    # Gastrointestinal
-    "omeprazol": "omeprazole",
-    "pantoprazol": "pantoprazole",
-    "lansoprazol": "lansoprazole",
-    "ranitidina": "ranitidine",
-    # Cardiovascular
-    "atorvastatina": "atorvastatin",
-    "simvastatina": "simvastatin",
-    "amlodipino": "amlodipine",
-    "enalapril": "enalapril",
-    "lisinopril": "lisinopril",
-    "losartán": "losartan",
-    "losartan": "losartan",
-    "bisoprolol": "bisoprolol",
-    "metoprolol": "metoprolol",
-    "furosemida": "furosemide",
-    "clopidogrel": "clopidogrel",
-    # Anticoagulantes
-    "acenocumarol": "acenocoumarol",
-    "warfarina": "warfarin",
-    "apixabán": "apixaban",
-    "apixaban": "apixaban",
-    "rivaroxabán": "rivaroxaban",
-    "rivaroxaban": "rivaroxaban",
-    # Psiquiátricos / Neurológicos
-    "alprazolam": "alprazolam",
-    "lorazepam": "lorazepam",
-    "diazepam": "diazepam",
-    "sertralina": "sertraline",
-    "fluoxetina": "fluoxetine",
-    "escitalopram": "escitalopram",
-    "paroxetina": "paroxetine",
-    "venlafaxina": "venlafaxine",
-    "pregabalina": "pregabalin",
-    "gabapentina": "gabapentin",
-    # Respiratorio
-    "salbutamol": "albuterol",
-    "ventolin": "albuterol",
-    "budesonida": "budesonide",
-    "montelukast": "montelukast",
-    # Hormonas / Otros
-    "levotiroxina": "levothyroxine",
-    "prednisona": "prednisone",
-    "prednisolona": "prednisolone",
-    "dexametasona": "dexamethasone",
+    # ── Analgésicos / Antipiréticos ──────────────────────────────────────────
+    "paracetamol":                    "acetaminophen",
+    "acetaminofén":                   "acetaminophen",
+    "gelocatil":                      "acetaminophen",
+    "efferalgan":                     "acetaminophen",
+    "termalgín":                      "acetaminophen",
+    "doliprane":                      "acetaminophen",  # FR
+    "tachipirina":                    "acetaminophen",  # IT
+    "dafalgan":                       "acetaminophen",  # FR/CH
+    "panadol":                        "acetaminophen",  # marca intl
+    "calpol":                         "acetaminophen",  # UK
+    "tylenol":                        "acetaminophen",  # US
+    "febrectal":                      "acetaminophen",  # ES pediátrico
+    "apiretal":                       "acetaminophen",  # ES pediátrico
+    # ── AINEs ────────────────────────────────────────────────────────────────
+    "ibuprofeno":                     "ibuprofen",
+    "ibuprofène":                     "ibuprofen",      # FR
+    "ibuprofen":                      "ibuprofen",
+    "nurofen":                        "ibuprofen",      # marca EU
+    "advil":                          "ibuprofen",      # marca intl
+    "brufen":                         "ibuprofen",      # marca EU
+    "espidifen":                      "ibuprofen",      # ES
+    "dalsy":                          "ibuprofen",      # ES pediátrico
+    "algiasdin":                      "ibuprofen",      # ES
+    "aspirina":                       "aspirin",
+    "aspegic":                        "aspirin",        # FR marca
+    "ácido acetilsalicílico":         "aspirin",
+    "acido acetilsalicilico":         "aspirin",
+    "acetylsalicylsäure":             "aspirin",        # DE
+    "acide acétylsalicylique":        "aspirin",        # FR
+    "acido acetilsalicilico":         "aspirin",        # IT
+    "diclofenaco":                    "diclofenac",
+    "diclofénac":                     "diclofenac",     # FR
+    "voltaren":                       "diclofenac",     # marca EU
+    "dicloflex":                      "diclofenac",     # UK
+    "naproxeno":                      "naproxen",
+    "naproxène":                      "naproxen",       # FR
+    "naprosyn":                       "naproxen",       # marca
+    "aleve":                          "naproxen",       # marca US
+    "naproxen":                       "naproxen",
+    "celecoxib":                      "celecoxib",
+    "celebrex":                       "celecoxib",      # marca
+    "etoricoxib":                     "etoricoxib",
+    "arcoxia":                        "etoricoxib",     # marca
+    "meloxicam":                      "meloxicam",
+    "mobic":                          "meloxicam",      # marca
+    "metamizol":                      "metamizole",
+    "dipirona":                       "metamizole",
+    "nolotil":                        "metamizole",     # marca ES
+    "novalgina":                      "metamizole",     # PT/IT
+    "ketorolaco":                     "ketorolac",
+    "toradol":                        "ketorolac",      # marca
+    "tramadol":                       "tramadol",
+    "tramal":                         "tramadol",       # marca EU
+    "adolonta":                       "tramadol",       # ES
+    "codeína":                        "codeine",
+    "codeina":                        "codeine",
+    "codéine":                        "codeine",        # FR
+    # ── Antibióticos ─────────────────────────────────────────────────────────
+    "amoxicilina":                    "amoxicillin",
+    "amoxicilline":                   "amoxicillin",    # FR
+    "amoxil":                         "amoxicillin",    # marca
+    "azitromicina":                   "azithromycin",
+    "azithromycine":                  "azithromycin",   # FR
+    "zithromax":                      "azithromycin",   # marca
+    "claritromicina":                 "clarithromycin",
+    "klacid":                         "clarithromycin", # marca EU
+    "biaxin":                         "clarithromycin", # marca US
+    "ciprofloxacino":                 "ciprofloxacin",
+    "ciprofloxacine":                 "ciprofloxacin",  # FR
+    "cipro":                          "ciprofloxacin",  # marca
+    "levofloxacino":                  "levofloxacin",
+    "levofloxacine":                  "levofloxacin",   # FR
+    "tavanic":                        "levofloxacin",   # marca EU
+    "doxiciclina":                    "doxycycline",
+    "doxycycline":                    "doxycycline",
+    "vibramycin":                     "doxycycline",    # marca
+    "cefalexina":                     "cephalexin",
+    "cefalexine":                     "cephalexin",     # FR
+    "keflex":                         "cephalexin",     # marca
+    "cefuroxima":                     "cefuroxime",
+    "zinnat":                         "cefuroxime",     # marca EU
+    "ceftriaxona":                    "ceftriaxone",
+    "rocephin":                       "ceftriaxone",    # marca
+    "amoxicilina clavulánico":        "amoxicillin clavulanate",
+    "amoxicilina clavulanato":        "amoxicillin clavulanate",
+    "augmentine":                     "amoxicillin clavulanate",
+    "augmentin":                      "amoxicillin clavulanate", # marca intl
+    "amoxicilline acide clavulanique":"amoxicillin clavulanate", # FR
+    "metronidazol":                   "metronidazole",
+    "flagyl":                         "metronidazole",  # marca
+    "trimetoprim sulfametoxazol":     "trimethoprim sulfamethoxazole",
+    "cotrimoxazol":                   "trimethoprim sulfamethoxazole",
+    "septrin":                        "trimethoprim sulfamethoxazole", # ES
+    "bactrim":                        "trimethoprim sulfamethoxazole", # marca
+    "nitrofurantoína":                "nitrofurantoin",
+    "nitrofurantoina":                "nitrofurantoin",
+    "macrobid":                       "nitrofurantoin", # marca
+    "fosfomicina":                    "fosfomycin",
+    "monurol":                        "fosfomycin",     # marca
+    "vancomicina":                    "vancomycin",
+    "meropenem":                      "meropenem",
+    "linezolid":                      "linezolid",
+    "zyvox":                          "linezolid",      # marca
+    "clindamicina":                   "clindamycin",
+    "dalacin":                        "clindamycin",    # marca EU
+    # ── Antifúngicos ─────────────────────────────────────────────────────────
+    "fluconazol":                     "fluconazole",
+    "diflucan":                       "fluconazole",    # marca
+    "itraconazol":                    "itraconazole",
+    "voriconazol":                    "voriconazole",
+    "terbinafina":                    "terbinafine",
+    "lamisil":                        "terbinafine",    # marca
+    # ── Antivirales ──────────────────────────────────────────────────────────
+    "aciclovir":                      "acyclovir",
+    "aciclovire":                     "acyclovir",      # IT
+    "zovirax":                        "acyclovir",      # marca
+    "valaciclovir":                   "valacyclovir",
+    "valtrex":                        "valacyclovir",   # marca
+    "oseltamivir":                    "oseltamivir",
+    "tamiflu":                        "oseltamivir",    # marca
+    # ── Antidiabéticos ───────────────────────────────────────────────────────
+    "metformina":                     "metformin",
+    "metformine":                     "metformin",      # FR
+    "glucophage":                     "metformin",      # marca
+    "sitagliptina":                   "sitagliptin",
+    "januvia":                        "sitagliptin",    # marca
+    "empagliflozina":                 "empagliflozin",
+    "jardiance":                      "empagliflozin",  # marca
+    "dapagliflozina":                 "dapagliflozin",
+    "forxiga":                        "dapagliflozin",  # marca EU
+    "farxiga":                        "dapagliflozin",  # marca US
+    "canagliflozina":                 "canagliflozin",
+    "invokana":                       "canagliflozin",  # marca
+    "liraglutida":                    "liraglutide",
+    "victoza":                        "liraglutide",    # marca
+    "semaglutida":                    "semaglutide",
+    "ozempic":                        "semaglutide",    # marca
+    "wegovy":                         "semaglutide",    # marca
+    "glibenclamida":                  "glyburide",
+    "glipizida":                      "glipizide",
+    "gliclazida":                     "gliclazide",
+    "diamicron":                      "gliclazide",     # marca EU
+    "pioglitazona":                   "pioglitazone",
+    "actos":                          "pioglitazone",   # marca
+    "insulina glargina":              "insulin glargine",
+    "lantus":                         "insulin glargine", # marca
+    "insulina aspart":                "insulin aspart",
+    "novorapid":                      "insulin aspart", # marca EU
+    "insulina lispro":                "insulin lispro",
+    "humalog":                        "insulin lispro", # marca
+    # ── Gastrointestinal ─────────────────────────────────────────────────────
+    "omeprazol":                      "omeprazole",
+    "oméprazole":                     "omeprazole",     # FR
+    "losec":                          "omeprazole",     # marca EU
+    "prilosec":                       "omeprazole",     # marca US
+    "pantoprazol":                    "pantoprazole",
+    "pantoprazole":                   "pantoprazole",
+    "pantoc":                         "pantoprazole",   # marca
+    "lansoprazol":                    "lansoprazole",
+    "prevacid":                       "lansoprazole",   # marca US
+    "esomeprazol":                    "esomeprazole",
+    "nexium":                         "esomeprazole",   # marca
+    "rabeprazol":                     "rabeprazole",
+    "ranitidina":                     "ranitidine",
+    "zantac":                         "ranitidine",     # marca
+    "famotidina":                     "famotidine",
+    "pepcid":                         "famotidine",     # marca
+    "metoclopramida":                 "metoclopramide",
+    "primperan":                      "metoclopramide", # marca EU
+    "ondansetrón":                    "ondansetron",
+    "ondansetron":                    "ondansetron",
+    "zofran":                         "ondansetron",    # marca
+    "loperamida":                     "loperamide",
+    "imodium":                        "loperamide",     # marca
+    "domperidona":                    "domperidone",
+    "motilium":                       "domperidone",    # marca EU
+    "mesalazina":                     "mesalamine",
+    "budesonida rectal":              "budesonide",
+    "lactulose":                      "lactulose",
+    "lactulosa":                      "lactulose",
+    # ── Cardiovascular ───────────────────────────────────────────────────────
+    "atorvastatina":                  "atorvastatin",
+    "atorvastatine":                  "atorvastatin",   # FR
+    "lipitor":                        "atorvastatin",   # marca
+    "simvastatina":                   "simvastatin",
+    "simvastatine":                   "simvastatin",    # FR
+    "zocor":                          "simvastatin",    # marca
+    "rosuvastatina":                  "rosuvastatin",
+    "crestor":                        "rosuvastatin",   # marca
+    "pravastatina":                   "pravastatin",
+    "amlodipino":                     "amlodipine",
+    "amlodipine":                     "amlodipine",
+    "norvasc":                        "amlodipine",     # marca
+    "enalapril":                      "enalapril",
+    "renitec":                        "enalapril",      # marca EU
+    "lisinopril":                     "lisinopril",
+    "zestril":                        "lisinopril",     # marca
+    "ramipril":                       "ramipril",
+    "tritace":                        "ramipril",       # marca EU
+    "perindopril":                    "perindopril",
+    "coversyl":                       "perindopril",    # marca
+    "losartán":                       "losartan",
+    "losartan":                       "losartan",
+    "cozaar":                         "losartan",       # marca
+    "valsartán":                      "valsartan",
+    "valsartan":                      "valsartan",
+    "diovan":                         "valsartan",      # marca
+    "irbesartán":                     "irbesartan",
+    "irbesartan":                     "irbesartan",
+    "aprovel":                        "irbesartan",     # marca EU
+    "candesartán":                    "candesartan",
+    "candesartan":                    "candesartan",
+    "bisoprolol":                     "bisoprolol",
+    "concor":                         "bisoprolol",     # marca EU
+    "metoprolol":                     "metoprolol",
+    "lopresor":                       "metoprolol",     # marca
+    "carvedilol":                     "carvedilol",
+    "dilatrend":                      "carvedilol",     # marca EU
+    "nebivolol":                      "nebivolol",
+    "bystolic":                       "nebivolol",      # marca US
+    "furosemida":                     "furosemide",
+    "furosémide":                     "furosemide",     # FR
+    "lasix":                          "furosemide",     # marca
+    "hidroclorotiazida":              "hydrochlorothiazide",
+    "hidrochlorothiazide":            "hydrochlorothiazide",
+    "espironolactona":                "spironolactone",
+    "aldactone":                      "spironolactone", # marca
+    "eplerenona":                     "eplerenone",
+    "inspra":                         "eplerenone",     # marca
+    "digoxina":                       "digoxin",
+    "lanoxin":                        "digoxin",        # marca
+    "amiodarona":                     "amiodarone",
+    "cordarone":                      "amiodarone",     # marca
+    "clopidogrel":                    "clopidogrel",
+    "plavix":                         "clopidogrel",    # marca
+    "ticagrelor":                     "ticagrelor",
+    "brilinta":                       "ticagrelor",     # marca
+    "prasugrel":                      "prasugrel",
+    "efient":                         "prasugrel",      # marca EU
+    "nitroglicerina":                 "nitroglycerin",
+    "nitrato de isosorbida":          "isosorbide dinitrate",
+    "mononitrato de isosorbida":      "isosorbide mononitrate",
+    "ivabradina":                     "ivabradine",
+    "procoralan":                     "ivabradine",     # marca EU
+    "sacubitrilo valsartán":          "sacubitril valsartan",
+    "entresto":                       "sacubitril valsartan", # marca
+    # ── Anticoagulantes ──────────────────────────────────────────────────────
+    "acenocumarol":                   "acenocoumarol",
+    "sintrom":                        "acenocoumarol",  # marca ES
+    "warfarina":                      "warfarin",
+    "warfarine":                      "warfarin",       # FR
+    "coumadin":                       "warfarin",       # marca
+    "apixabán":                       "apixaban",
+    "apixaban":                       "apixaban",
+    "eliquis":                        "apixaban",       # marca
+    "rivaroxabán":                    "rivaroxaban",
+    "rivaroxaban":                    "rivaroxaban",
+    "xarelto":                        "rivaroxaban",    # marca
+    "dabigatrán":                     "dabigatran",
+    "dabigatran":                     "dabigatran",
+    "pradaxa":                        "dabigatran",     # marca
+    "edoxabán":                       "edoxaban",
+    "edoxaban":                       "edoxaban",
+    "lixiana":                        "edoxaban",       # marca EU
+    "heparina":                       "heparin",
+    "enoxaparina":                    "enoxaparin",
+    "clexane":                        "enoxaparin",     # marca EU
+    "lovenox":                        "enoxaparin",     # marca US
+    # ── Psiquiátricos / Neurológicos ─────────────────────────────────────────
+    "alprazolam":                     "alprazolam",
+    "xanax":                          "alprazolam",     # marca
+    "lorazepam":                      "lorazepam",
+    "orfidal":                        "lorazepam",      # marca ES
+    "diazepam":                       "diazepam",
+    "valium":                         "diazepam",       # marca
+    "clonazepam":                     "clonazepam",
+    "rivotril":                       "clonazepam",     # marca EU
+    "bromazepam":                     "bromazepam",
+    "lexatin":                        "bromazepam",     # marca ES
+    "sertralina":                     "sertraline",
+    "sertraline":                     "sertraline",
+    "zoloft":                         "sertraline",     # marca
+    "fluoxetina":                     "fluoxetine",
+    "fluoxétine":                     "fluoxetine",     # FR
+    "prozac":                         "fluoxetine",     # marca
+    "escitalopram":                   "escitalopram",
+    "lexapro":                        "escitalopram",   # marca US
+    "cipralex":                       "escitalopram",   # marca EU
+    "citalopram":                     "citalopram",
+    "celexa":                         "citalopram",     # marca US
+    "paroxetina":                     "paroxetine",
+    "paroxétine":                     "paroxetine",     # FR
+    "paxil":                          "paroxetine",     # marca US
+    "seroxat":                        "paroxetine",     # marca EU
+    "venlafaxina":                    "venlafaxine",
+    "venlafaxine":                    "venlafaxine",
+    "effexor":                        "venlafaxine",    # marca
+    "duloxetina":                     "duloxetine",
+    "cymbalta":                       "duloxetine",     # marca
+    "mirtazapina":                    "mirtazapine",
+    "remeron":                        "mirtazapine",    # marca
+    "trazodona":                      "trazodone",
+    "amitriptilina":                  "amitriptyline",
+    "pregabalina":                    "pregabalin",
+    "pregabaline":                    "pregabalin",     # FR
+    "lyrica":                         "pregabalin",     # marca
+    "gabapentina":                    "gabapentin",
+    "gabapentine":                    "gabapentin",     # FR
+    "neurontin":                      "gabapentin",     # marca
+    "quetiapina":                     "quetiapine",
+    "seroquel":                       "quetiapine",     # marca
+    "olanzapina":                     "olanzapine",
+    "zyprexa":                        "olanzapine",     # marca
+    "risperidona":                    "risperidone",
+    "risperdal":                      "risperidone",    # marca
+    "aripiprazol":                    "aripiprazole",
+    "abilify":                        "aripiprazole",   # marca
+    "haloperidol":                    "haloperidol",
+    "haldol":                         "haloperidol",    # marca
+    "litio":                          "lithium",
+    "carbonate de lithium":           "lithium",        # FR
+    "carbonato de litio":             "lithium",
+    "carbamazepina":                  "carbamazepine",
+    "tegretol":                       "carbamazepine",  # marca
+    "valproato":                      "valproate",
+    "ácido valproico":                "valproate",
+    "acido valproico":                "valproate",
+    "depakote":                       "valproate",      # marca US
+    "depakine":                       "valproate",      # marca EU
+    "levetiracetam":                  "levetiracetam",
+    "keppra":                         "levetiracetam",  # marca
+    "lamotrigina":                    "lamotrigine",
+    "lamictal":                       "lamotrigine",    # marca
+    "topiramato":                     "topiramate",
+    "topamax":                        "topiramate",     # marca
+    "fenitoína":                      "phenytoin",
+    "fenitoina":                      "phenytoin",
+    "dilantin":                       "phenytoin",      # marca US
+    "fenobarbital":                   "phenobarbital",
+    "zolpidem":                       "zolpidem",
+    "stilnox":                        "zolpidem",       # marca EU
+    "melatonina":                     "melatonin",
+    "melatonine":                     "melatonin",      # FR
+    "donepezilo":                     "donepezil",
+    "aricept":                        "donepezil",      # marca
+    "memantina":                      "memantine",
+    "ebixa":                          "memantine",      # marca EU
+    "methylfenidato":                 "methylphenidate",
+    "metilfenidato":                  "methylphenidate",
+    "ritalin":                        "methylphenidate", # marca
+    # ── Respiratorio ─────────────────────────────────────────────────────────
+    "salbutamol":                     "albuterol",
+    "ventolin":                       "albuterol",      # marca
+    "albuterol":                      "albuterol",
+    "terbutalina":                    "terbutaline",
+    "bricanyl":                       "terbutaline",    # marca EU
+    "formoterol":                     "formoterol",
+    "salmeterol":                     "salmeterol",
+    "seretide":                       "salmeterol fluticasone", # marca EU combo
+    "symbicort":                      "budesonide formoterol",  # marca combo
+    "budesonida":                     "budesonide",
+    "pulmicort":                      "budesonide",     # marca
+    "fluticasona":                    "fluticasone",
+    "flixotide":                      "fluticasone",    # marca EU
+    "beclometasona":                  "beclomethasone",
+    "clenil":                         "beclomethasone", # marca EU
+    "tiotropio":                      "tiotropium",
+    "spiriva":                        "tiotropium",     # marca
+    "umeclidinio":                    "umeclidinium",
+    "montelukast":                    "montelukast",
+    "singulair":                      "montelukast",    # marca
+    "teofilina":                      "theophylline",
+    "ipratropio":                     "ipratropium",
+    "atrovent":                       "ipratropium",    # marca
+    "roflumilast":                    "roflumilast",
+    "daxas":                          "roflumilast",    # marca EU
+    # ── Hormonas ─────────────────────────────────────────────────────────────
+    "levotiroxina":                   "levothyroxine",
+    "levothyroxine":                  "levothyroxine",
+    "eutirox":                        "levothyroxine",  # marca ES
+    "synthroid":                      "levothyroxine",  # marca US
+    "prednisona":                     "prednisone",
+    "prednisolona":                   "prednisolone",
+    "dexametasona":                   "dexamethasone",
+    "dexaméthasone":                  "dexamethasone",  # FR
+    "metilprednisolona":              "methylprednisolone",
+    "urbason":                        "methylprednisolone", # marca EU
+    "hidrocortisona":                 "hydrocortisone",
+    "cortisol":                       "hydrocortisone",
+    "fludrocortisona":                "fludrocortisone",
+    "testosterona":                   "testosterone",
+    "estradiol":                      "estradiol",
+    "progesterona":                   "progesterone",
+    "utrogestan":                     "progesterone",   # marca EU
+    "acetato de medroxiprogesterona": "medroxyprogesterone",
+    "depo-provera":                   "medroxyprogesterone", # marca
+    # ── Oncología / Inmunomoduladores ────────────────────────────────────────
+    "metotrexato":                    "methotrexate",
+    "methotrexate":                   "methotrexate",
+    "ciclofosfamida":                 "cyclophosphamide",
+    "azatioprina":                    "azathioprine",
+    "imurel":                         "azathioprine",   # marca EU
+    "micofenolato":                   "mycophenolate",
+    "cellcept":                       "mycophenolate",  # marca
+    "tacrolimus":                     "tacrolimus",
+    "prograf":                        "tacrolimus",     # marca
+    "ciclosporina":                   "cyclosporine",
+    "neoral":                         "cyclosporine",   # marca EU
+    "hidroxicloroquina":              "hydroxychloroquine",
+    "plaquenil":                      "hydroxychloroquine", # marca
+    # ── Dermatología ─────────────────────────────────────────────────────────
+    "isotretinoína":                  "isotretinoin",
+    "isotretinoina":                  "isotretinoin",
+    "roaccutane":                     "isotretinoin",   # marca EU
+    "tretinoína":                     "tretinoin",
+    "tretinoina":                     "tretinoin",
+    "retin-a":                        "tretinoin",      # marca
+    "finasterida":                    "finasteride",
+    "propecia":                       "finasteride",    # marca
+    "minoxidilo":                     "minoxidil",
+    "rogaine":                        "minoxidil",      # marca
+    # ── Osteoporosis / Reumatología ──────────────────────────────────────────
+    "alendronato":                    "alendronate",
+    "fosamax":                        "alendronate",    # marca
+    "ibandronato":                    "ibandronate",
+    "bondronat":                      "ibandronate",    # marca EU
+    "risedronato":                    "risedronate",
+    "actonel":                        "risedronate",    # marca
+    "denosumab":                      "denosumab",
+    "prolia":                         "denosumab",      # marca
+    "calcio carbonato":               "calcium carbonate",
+    "vitamina d":                     "vitamin d",
+    "colecalciferol":                 "cholecalciferol",
+    "calcitriol":                     "calcitriol",
+    # ── Urología ─────────────────────────────────────────────────────────────
+    "tamsulosina":                    "tamsulosin",
+    "omnic":                          "tamsulosin",     # marca EU
+    "dutasterida":                    "dutasteride",
+    "avodart":                        "dutasteride",    # marca
+    "solifenacina":                   "solifenacin",
+    "vesicare":                       "solifenacin",    # marca
+    "sildenafilo":                    "sildenafil",
+    "viagra":                         "sildenafil",     # marca
+    "tadalafilo":                     "tadalafil",
+    "cialis":                         "tadalafil",      # marca
+    # ── Oftalmología ─────────────────────────────────────────────────────────
+    "timolol":                        "timolol",
+    "latanoprost":                    "latanoprost",
+    "xalatan":                        "latanoprost",    # marca
+    "dorzolamida":                    "dorzolamide",
+    "trusopt":                        "dorzolamide",    # marca EU
 }
+
+_ALL_KNOWN_NAMES = list(NAME_TRANSLATIONS.keys())
+
+
+def fuzzy_resolve_drug_name(query: str) -> str:
+    """
+    Resuelve nombres de medicamentos tolerando faltas de ortografía,
+    nombres en otros idiomas y variantes de escritura.
+    Estrategia:
+    1. Coincidencia exacta en NAME_TRANSLATIONS
+    2. Coincidencia parcial (prefijo/substring)
+    3. Fuzzy estricto (cutoff 0.72)
+    4. Fuzzy permisivo (cutoff 0.60)
+    5. Fallback: devuelve el original
+    """
+    q = query.lower().strip()
+
+    # 1. Exacto
+    if q in NAME_TRANSLATIONS:
+        return NAME_TRANSLATIONS[q]
+
+    # 2. Parcial — el query es prefijo o substring de una clave conocida
+    for key, fda_name in NAME_TRANSLATIONS.items():
+        if len(q) >= 4 and (key.startswith(q) or q.startswith(key[:max(4, len(key) - 2)])):
+            return fda_name
+
+    # 3. Fuzzy estricto
+    matches = get_close_matches(q, _ALL_KNOWN_NAMES, n=1, cutoff=0.72)
+    if matches:
+        return NAME_TRANSLATIONS[matches[0]]
+
+    # 4. Fuzzy permisivo
+    matches = get_close_matches(q, _ALL_KNOWN_NAMES, n=1, cutoff=0.60)
+    if matches:
+        return NAME_TRANSLATIONS[matches[0]]
+
+    # 5. Fallback: OpenFDA puede entenderlo directamente
+    return query
+
 
 DEFAULT_SOURCES = [
     {
@@ -131,11 +549,81 @@ class CompatRequest(BaseModel):
     drug_name: str
     patient_text: str
     symptom_text: str = ""
+    lang: str = "es"
 
 
 # ─────────────────────────────────────────
 # OPENFDA — FETCH
 # ─────────────────────────────────────────
+
+
+async def enrich_drug_data(med: dict, lang: str) -> dict:
+    """
+    Enriquece la ficha del medicamento con Gemini:
+    - Si lang=es: traduce todos los campos al español (nombre, clase, usos, etc.)
+    - En ambos idiomas: genera un dato curioso real sobre el medicamento.
+    """
+    if not GEMINI_KEY:
+        return med
+
+    drug_name = med.get("name", "this drug")
+
+    if lang == "es":
+        payload = {
+            "name":         med.get("name", ""),
+            "class":        med.get("class", ""),
+            "uses":         med.get("uses", "")[:600],
+            "dosage":       med.get("dosage", "")[:200],
+            "sideEffects":  med.get("sideEffects", [])[:6],
+            "restrictions": med.get("restrictions", [])[:5],
+            "notFor":       med.get("notFor", [])[:5],
+        }
+        prompt = (
+            f"Eres un experto farmacéutico y traductor médico.\n"
+            f"1. Traduce todos los campos del siguiente JSON del inglés al español. "
+            f"Mantén los nombres propios de medicamentos (ej: 'Ibuprofen' se queda como 'Ibuprofeno'). "
+            f"Sé preciso en terminología médica.\n"
+            f"2. Añade un campo 'funFact' con un dato curioso REAL y verificado sobre {drug_name} "
+            f"en español (1-2 frases interesantes, científicas o históricas).\n"
+            f"Devuelve SOLO un JSON con los mismos campos más 'funFact'.\n\n"
+            + json.dumps(payload, ensure_ascii=False)
+        )
+    else:
+        prompt = (
+            f"You are a pharmaceutical expert.\n"
+            f"Generate a real, verified, interesting scientific or historical fun fact about {drug_name} "
+            f"in English (1-2 sentences).\n"
+            f"Return ONLY a JSON object with a single key 'funFact'."
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=25) as client:
+            resp = await client.post(
+                GEMINI_URL,
+                headers={"X-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.4,
+                        "maxOutputTokens": 2000,
+                        "responseMimeType": "application/json",
+                    }
+                }
+            )
+        if resp.status_code == 200:
+            raw_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+            result = json.loads(raw_text)
+            med = {**med}
+            if lang == "es":
+                for key in ["name", "class", "uses", "dosage", "sideEffects", "restrictions", "notFor"]:
+                    if key in result and result[key]:
+                        med[key] = result[key]
+            if result.get("funFact"):
+                med["fact"] = result["funFact"]
+    except Exception:
+        pass  # fallback: devolver datos originales en inglés si falla
+
+    return med
 
 
 async def fetch_openfda_raw(query: str) -> Optional[dict]:
@@ -144,7 +632,7 @@ async def fetch_openfda_raw(query: str) -> Optional[dict]:
     Intenta: nombre traducido → nombre original → brand name → substance name.
     """
     q_lower = query.lower().strip()
-    translated = NAME_TRANSLATIONS.get(q_lower, query)
+    translated = fuzzy_resolve_drug_name(q_lower)
 
     # Construir lista de términos a probar (sin duplicados)
     terms = [translated]
@@ -318,19 +806,15 @@ def openfda_to_drug(raw: dict) -> dict:
     # Indicaciones
     uses = (_first(raw.get("indications_and_usage"), 700)
             or _first(raw.get("purpose"), 700)
-            or "Consultar prospecto oficial para indicaciones completas.")
+            or "")
 
-    # Efectos adversos
+    # Efectos adversos — lista vacía si no hay datos (el frontend pone el fallback traducido)
     adverse_text = _first(raw.get("adverse_reactions"), 2000)
-    side_effects = _split_to_list(adverse_text) or [
-        "Consultar prospecto para lista completa de efectos adversos."
-    ]
+    side_effects = _split_to_list(adverse_text)
 
-    # Contraindicaciones
+    # Contraindicaciones — lista vacía si no hay datos (el frontend pone el fallback traducido)
     contra_text = _first(raw.get("contraindications"), 2000)
-    restrictions = _split_to_list(contra_text) or [
-        "Consultar prospecto para contraindicaciones completas."
-    ]
+    restrictions = _split_to_list(contra_text)
 
     # Cuándo no usar — advertencias
     warnings_text = (_first(raw.get("warnings_and_cautions"), 2000)
@@ -438,7 +922,7 @@ def openfda_to_drug(raw: dict) -> dict:
         "name": name,
         "class": drug_class,
         "emoji": emoji,
-        "dosage": dosage or "Consultar prospecto.",
+        "dosage": dosage or "",
         "uses": uses,
         "sideEffects": side_effects,
         "restrictions": restrictions,
@@ -620,13 +1104,16 @@ def build_explanation(verdict: str, med_name: str, suit_text: str) -> str:
 
 
 @app.get("/api/drugs/search")
-async def search_drug(query: str = Query(..., min_length=1)):
+async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("es")):
     """
     Busca un medicamento en OpenFDA y devuelve su ficha estructurada.
+    Si lang=es, traduce los campos de texto al español.
     """
     raw = await fetch_openfda_raw(query)
     if raw:
-        return {"found": True, "drug": openfda_to_drug(raw)}
+        drug = openfda_to_drug(raw)
+        drug = await enrich_drug_data(drug, lang)
+        return {"found": True, "drug": drug}
     return {"found": False, "drug": None}
 
 
@@ -768,18 +1255,24 @@ Información oficial del medicamento (fuente: OpenFDA / FDA):
         drug_context = f"Medicamento: {req.drug_name} (no encontrado en OpenFDA, usar conocimiento general)."
 
     # 2. Construir el prompt para Gemini
-    prompt = f"""Eres un sistema experto de análisis farmacéutico clínico.
-Analiza la compatibilidad del siguiente medicamento con el perfil del paciente y genera un informe médico detallado en español.
+    lang_instruction = (
+        "Analiza y responde COMPLETAMENTE EN ESPAÑOL."
+        if req.lang == "es" else
+        "Analyze and respond COMPLETELY IN ENGLISH."
+    )
+
+    prompt = f"""You are an expert clinical pharmaceutical analysis system.
+Analyze the compatibility of the following medication with the patient profile and generate a detailed medical report.
 
 {drug_context}
 
-Información del paciente:
-{req.patient_text or 'No especificada.'}
+Patient information:
+{req.patient_text or 'Not specified.'}
 
-Síntomas / motivo de consulta:
+Symptoms / reason for consultation:
 {req.symptom_text or req.drug_name}
 
-Analiza y responde en español."""
+{lang_instruction}"""
 
     # Schema JSON que Gemini debe respetar estrictamente
     response_schema = {
