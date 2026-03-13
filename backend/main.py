@@ -909,16 +909,138 @@ def _split_to_list(text: str, max_items: int = 8) -> List[str]:
     """Divide texto libre (efectos adversos, contraindicaciones) en lista de items."""
     if not text:
         return []
-    # Intentar separar por bullets, guiones, números de lista o doble salto
-    items = re.split(r'\n\s*[\u2022\-\*•]\s*|\n\s*\d+[\.\)]\s*|\n{2,}', text)
-    items = [
-        i.strip().rstrip('.').rstrip(',') for i in items if len(i.strip()) > 12
-    ]
-    if len(items) <= 1:
-        # fallback: separar por punto seguido de mayúscula
-        items = re.split(r'\.\s+(?=[A-Z])', text)
-        items = [i.strip() for i in items if len(i.strip()) > 12]
-    return [i[:200] for i in items[:max_items]]
+
+    def _clean(s: str) -> str:
+        return re.sub(r'^[\s\u2022\-\*•◦▸\d.)]+', '', s).strip().rstrip('.,;')
+
+    # 1. Bullet / numbered list
+    parts = re.split(r'\n\s*[\u2022\-\*•◦]\s*|\n\s*\d+[.)]\s+', text)
+    parts = [_clean(p) for p in parts if len(_clean(p)) > 12]
+    if len(parts) > 1:
+        return [p[:200] for p in parts[:max_items]]
+
+    # 2. Doble salto de línea
+    parts = re.split(r'\n{2,}', text)
+    parts = [_clean(p) for p in parts if len(_clean(p)) > 12]
+    if len(parts) > 1:
+        return [p[:200] for p in parts[:max_items]]
+
+    # 3. Salto de línea simple
+    parts = [_clean(p) for p in text.split('\n') if len(_clean(p)) > 12]
+    if len(parts) > 1:
+        return [p[:200] for p in parts[:max_items]]
+
+    # 4. Sentencias (punto + mayúscula)
+    parts = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+    parts = [p.strip() for p in parts if len(p.strip()) > 12]
+    return [p[:200] for p in parts[:max_items]]
+
+
+def _extract_side_effects(raw: dict) -> List[str]:
+    """
+    Extrae efectos adversos del label FDA.
+    - Medicamentos Rx: campo adverse_reactions → busca patrón 'most common … are X, Y'
+      y porcentajes, luego split genérico.
+    - Medicamentos OTC: campos when_using + stop_use + warnings (patrón 'include:').
+    """
+    # ── Rx: adverse_reactions ──────────────────────────────────────────────────
+    adverse_text = _first(raw.get("adverse_reactions"), 3000)
+    if adverse_text:
+        # Patrón "most common … are/include X, Y, Z"
+        m = re.search(
+            r'most\s+common[^:\n]{0,100}(?:are|include|were)[:\s]+(.+?)\.(?=\s+[A-Z]|\s*$)',
+            adverse_text, re.IGNORECASE
+        )
+        if m:
+            segment = re.sub(r'\(\s*[\d.\s]+\)', '', m.group(1))  # quitar refs "( 6.1 )"
+            items = [
+                s.strip().rstrip('.,;')
+                for s in re.split(r',\s*(?:and\s+)?|;\s*', segment)
+                if len(s.strip()) > 3
+            ]
+            if len(items) >= 2:
+                return [i[:120] for i in items[:10]]
+
+        # Patrón porcentaje: "nausea (3-9%)" o "nausea (0.7%)"
+        pct_items = re.findall(
+            r'([a-z][a-z\s\-/]{2,40})\s*\(\s*[\d.]+(?:\s*-\s*[\d.]+)?\s*%\s*\)',
+            adverse_text, re.IGNORECASE
+        )
+        if len(pct_items) >= 2:
+            return [i.strip()[:120] for i in pct_items[:10]]
+
+        # Limpieza y split genérico
+        clean = re.sub(r'^\s*\d+\s+ADVERSE REACTIONS\b\s*', '', adverse_text)
+        clean = re.sub(r'\[see [^\]]+\]', '', clean)
+        clean = re.sub(r'\(\s*[\d.]+\s*\)', '', clean)
+        items = _split_to_list(clean, max_items=8)
+        if items:
+            return items
+
+    # ── OTC: when_using ────────────────────────────────────────────────────────
+    items: List[str] = []
+    when_text = _first(raw.get("when_using"), 1000)
+    if when_text:
+        items = _split_to_list(when_text, max_items=5)
+
+    # OTC: stop_use (señales de alarma)
+    stop_text = _first(raw.get("stop_use"), 1200)
+    if stop_text:
+        # Buscar lista después de "include:" o "following:"
+        m = re.search(r'(?:following|include)[^:]*:\s*(.+)', stop_text, re.IGNORECASE | re.DOTALL)
+        if m:
+            segment = m.group(1)[:600]
+            extra = _split_to_list(segment, max_items=6)
+        else:
+            extra = _split_to_list(stop_text, max_items=5)
+        items += [i for i in extra if i not in items]
+
+    # OTC: warnings → "Symptoms may include: rash facial swelling ..."
+    if len(items) < 3:
+        warn_text = _first(raw.get("warnings"), 2000)
+        m = re.search(r'(?:symptoms?\s+may\s+include|symptoms?\s+include)[^:]*:\s*(.+?)(?:\n|If an|$)',
+                      warn_text, re.IGNORECASE | re.DOTALL)
+        if m:
+            segment = m.group(1).strip()
+            # Palabras/frases separadas por espacios o comas
+            parts = re.split(r'[\n,]+', segment)
+            extra = [p.strip().rstrip('.,;') for p in parts if 3 < len(p.strip()) < 80]
+            items += [i for i in extra if i not in items]
+
+    return [i[:200] for i in items[:10]]
+
+
+def _extract_contraindications(raw: dict) -> List[str]:
+    """
+    Extrae contraindicaciones del label FDA.
+    - Medicamentos Rx: campo contraindications → limpia encabezados y refs.
+    - Medicamentos OTC: campo do_not_use → split genérico.
+    """
+    # ── Rx: contraindications ──────────────────────────────────────────────────
+    contra_text = _first(raw.get("contraindications"), 2500)
+    if contra_text:
+        clean = re.sub(r'^\s*\d+\s+CONTRAINDICATIONS\b\s*', '', contra_text)
+        clean = re.sub(r'\[see [^\]]+\]', '', clean)
+        clean = re.sub(r'\(\s*[\d.\s]+\)', '', clean)
+        # Normalizar separadores: cada punto seguido de mayúscula es un item nuevo
+        clean = re.sub(r'\.\s+(?=[A-Z])', '.\n', clean)
+        items = _split_to_list(clean, max_items=6)
+        if items:
+            return items
+
+    # ── OTC: do_not_use ───────────────────────────────────────────────────────
+    do_not = _first(raw.get("do_not_use"), 1000)
+    if do_not:
+        items = _split_to_list(do_not, max_items=6)
+        if items:
+            return items
+
+    # ── OTC: ask_doctor (precauciones como contraindications adicionales) ──────
+    ask_text = _first(raw.get("ask_doctor"), 1000)
+    if ask_text:
+        return _split_to_list(ask_text, max_items=5)
+
+    return []
 
 
 def _drug_class(openfda: dict) -> str:
@@ -1038,18 +1160,21 @@ def openfda_to_drug(raw: dict) -> dict:
             or _first(raw.get("purpose"), 700)
             or "")
 
-    # Efectos adversos — lista vacía si no hay datos (el frontend pone el fallback traducido)
-    adverse_text = _first(raw.get("adverse_reactions"), 2000)
-    side_effects = _split_to_list(adverse_text)
+    # Efectos adversos
+    side_effects = _extract_side_effects(raw)
 
-    # Contraindicaciones — lista vacía si no hay datos (el frontend pone el fallback traducido)
-    contra_text = _first(raw.get("contraindications"), 2000)
-    restrictions = _split_to_list(contra_text)
+    # Contraindicaciones
+    restrictions = _extract_contraindications(raw)
 
     # Cuándo no usar — advertencias
     warnings_text = (_first(raw.get("warnings_and_cautions"), 2000)
                      or _first(raw.get("warnings"), 2000))
     not_for = _split_to_list(warnings_text)[:6] or restrictions[:3]
+
+    # Texto crudo de contraindicaciones (para compat — búsquedas de sección)
+    _contra_raw = (_first(raw.get("contraindications"), 2000)
+                   or _first(raw.get("do_not_use"), 1000)
+                   or "")
 
     # Fuentes
     sources = [
@@ -1105,7 +1230,7 @@ def openfda_to_drug(raw: dict) -> dict:
 
     # Insuficiencia renal
     renal_text = (_first(raw.get("renal_impairment"), 600)
-                  or _extract_section_for(warnings_text or contra_text, [
+                  or _extract_section_for(warnings_text or _contra_raw, [
                       "renal", "kidney", "renal impairment", "renal failure"
                   ]))
     if renal_text:
@@ -1116,7 +1241,7 @@ def openfda_to_drug(raw: dict) -> dict:
 
     # Insuficiencia hepática
     hep_text = (_first(raw.get("hepatic_impairment"), 600)
-                or _extract_section_for(warnings_text or contra_text, [
+                or _extract_section_for(warnings_text or _contra_raw, [
                     "hepatic", "liver", "hepatic impairment", "hepatic failure"
                 ]))
     if hep_text:
@@ -1126,7 +1251,7 @@ def openfda_to_drug(raw: dict) -> dict:
         }
 
     # Gastrointestinal
-    gi_text = _extract_section_for(warnings_text or contra_text, [
+    gi_text = _extract_section_for(warnings_text or _contra_raw, [
         "gastrointestinal", "gastric", "stomach", "ulcer", "GI bleeding",
         "peptic"
     ])
@@ -1138,7 +1263,7 @@ def openfda_to_drug(raw: dict) -> dict:
 
     # Alergia a AINEs (para NSAIDs)
     nsaid_text = _extract_section_for(
-        contra_text or warnings_text,
+        _contra_raw or warnings_text,
         ["aspirin", "nsaid", "nonsteroidal", "hypersensitivity", "allergic"])
     if nsaid_text:
         compat["allergy_nsaid"] = {

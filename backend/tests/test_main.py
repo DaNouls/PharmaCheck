@@ -27,6 +27,8 @@ with unittest.mock.patch.dict("sys.modules", {
         parse_patient,
         analyze_compat,
         _split_to_list,
+        _extract_side_effects,
+        _extract_contraindications,
         _infer_verdict,
         _first,
         _drug_class,
@@ -83,6 +85,105 @@ class TestSplitToList:
         items = "\n• " + "\n• ".join(f"Symptom number {i} which is quite long" for i in range(20))
         result = _split_to_list(items, max_items=5)
         assert len(result) <= 5
+
+
+# ─────────────────────────────────────────
+# _extract_side_effects
+# ─────────────────────────────────────────
+
+RX_RAW_ATORVASTATIN = {
+    "openfda": {"generic_name": ["atorvastatin"], "pharm_class_epc": ["HMG-CoA Reductase Inhibitor [EPC]"]},
+    "adverse_reactions": [
+        "6 ADVERSE REACTIONS Most common adverse reactions (incidence ≥5%) are "
+        "nasopharyngitis, arthralgia, diarrhea, pain in extremity, and urinary tract infection (6.1)."
+    ],
+    "contraindications": [
+        "4 CONTRAINDICATIONS Acute liver failure or decompensated cirrhosis [see Warnings (5.3)]. "
+        "Hypersensitivity to atorvastatin or any excipients in atorvastatin calcium."
+    ],
+    "indications_and_usage": ["Treatment of hyperlipidemia."],
+    "dosage_and_administration": ["Adults: 10 to 80 mg once daily."],
+    "warnings_and_cautions": ["Use with caution in patients with renal impairment."],
+}
+
+OTC_RAW_IBUPROFEN = {
+    "openfda": {"generic_name": ["ibuprofen"], "pharm_class_epc": ["Nonsteroidal Anti-inflammatory Drug [EPC]"]},
+    "when_using": ["When using this product take with food or milk if stomach upset occurs"],
+    "stop_use": [
+        "Stop use and ask a doctor if you experience any of the following signs of stomach bleeding: "
+        "feel faint have bloody or black stools vomit blood have stomach pain that does not get better"
+    ],
+    "do_not_use": [
+        "Do not use if you have ever had an allergic reaction to any other pain reliever right before or after heart surgery"
+    ],
+    "ask_doctor": [
+        "Ask a doctor before use if you have high blood pressure, heart disease, liver cirrhosis, kidney disease, or asthma"
+    ],
+    "warnings": [
+        "Allergy alert: Ibuprofen may cause a severe allergic reaction. "
+        "Symptoms may include: rash, facial swelling, asthma, hives, skin reddening, shock, blisters"
+    ],
+    "indications_and_usage": ["Temporarily relieves minor aches and pains."],
+    "dosage_and_administration": ["Adults: 200-400mg every 4 to 6 hours."],
+}
+
+
+class TestExtractSideEffects:
+    def test_rx_most_common_pattern(self):
+        items = _extract_side_effects(RX_RAW_ATORVASTATIN)
+        assert isinstance(items, list)
+        assert len(items) >= 3
+        combined = " ".join(items).lower()
+        assert "arthralgia" in combined or "diarrhea" in combined or "nasopharyngitis" in combined
+
+    def test_otc_when_using(self):
+        items = _extract_side_effects(OTC_RAW_IBUPROFEN)
+        assert isinstance(items, list)
+        assert len(items) >= 1
+
+    def test_otc_warnings_symptoms_include(self):
+        items = _extract_side_effects(OTC_RAW_IBUPROFEN)
+        combined = " ".join(items).lower()
+        assert any(k in combined for k in ("rash", "stomach", "faint", "swelling", "food"))
+
+    def test_empty_raw(self):
+        assert _extract_side_effects({}) == []
+
+    def test_returns_list(self):
+        assert isinstance(_extract_side_effects({}), list)
+
+    def test_max_10_items(self):
+        items = _extract_side_effects(RX_RAW_ATORVASTATIN)
+        assert len(items) <= 10
+
+
+class TestExtractContraindications:
+    def test_rx_strips_header(self):
+        items = _extract_contraindications(RX_RAW_ATORVASTATIN)
+        assert isinstance(items, list)
+        assert len(items) >= 1
+        # Header "4 CONTRAINDICATIONS" should not appear in items
+        assert not any(item.strip().startswith("4") for item in items)
+
+    def test_rx_strips_see_refs(self):
+        items = _extract_contraindications(RX_RAW_ATORVASTATIN)
+        combined = " ".join(items)
+        assert "[see" not in combined
+
+    def test_rx_has_content(self):
+        items = _extract_contraindications(RX_RAW_ATORVASTATIN)
+        combined = " ".join(items).lower()
+        assert "liver" in combined or "hypersensitivity" in combined
+
+    def test_otc_do_not_use(self):
+        items = _extract_contraindications(OTC_RAW_IBUPROFEN)
+        assert isinstance(items, list)
+        assert len(items) >= 1
+        combined = " ".join(items).lower()
+        assert "allergic" in combined or "heart" in combined or "blood pressure" in combined
+
+    def test_empty_raw(self):
+        assert _extract_contraindications({}) == []
 
 
 # ─────────────────────────────────────────
@@ -209,6 +310,8 @@ SAMPLE_RAW = {
     "adverse_reactions": ["• Nausea and vomiting\n• Headache\n• Dizziness and somnolence"],
     "contraindications": ["Contraindicated in patients with known hypersensitivity to ibuprofen."],
     "warnings": ["Use with caution in patients with renal impairment."],
+    "when_using": ["Take with food or milk if stomach upset occurs"],
+    "do_not_use": ["Do not use if you have ever had an allergic reaction to ibuprofen or aspirin"],
 }
 
 class TestOpenfdaToDrug:
