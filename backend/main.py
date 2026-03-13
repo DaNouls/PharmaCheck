@@ -20,19 +20,33 @@ from pydantic import BaseModel
 app = FastAPI(title="PharmaCheck API", version="2.0.0")
 
 # ─────────────────────────────────────────
-# TRADUCCIÓN — stub ligero (sin dependencias pesadas)
+# TRADUCCIÓN — deep-translator (Google Translate, sin API key)
 # ─────────────────────────────────────────
 
 _lt_ready = False
 
+try:
+    from deep_translator import GoogleTranslator
+    _lt_ready = True
+except ImportError:
+    GoogleTranslator = None
+
 
 def _init_libretranslate():
-    print("[Translate] Traducción local desactivada — se devuelve texto original.")
+    if _lt_ready:
+        print("[Translate] ✓ deep-translator (Google) listo")
+    else:
+        print("[Translate] deep-translator no disponible — se devuelve texto original.")
 
 
 def translate_en_es(text: str) -> str:
-    """Devuelve el texto sin traducir (stub ligero)."""
-    return text
+    """Traduce texto de inglés a español usando Google Translate (deep-translator)."""
+    if not _lt_ready or not text:
+        return text
+    try:
+        return GoogleTranslator(source="en", target="es").translate(text)
+    except Exception:
+        return text
 
 
 @app.on_event("startup")
