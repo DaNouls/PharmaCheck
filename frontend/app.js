@@ -251,7 +251,7 @@ async function apiGeminiCompatibility(drugName, patientText, symptomText = '') {
 }
 
 async function apiExternalDrug(query) {
-  const res = await fetch(`${API_BASE}/api/drugs/external?query=${encodeURIComponent(query)}`);
+  const res = await fetch(`${API_BASE}/api/drugs/external?query=${encodeURIComponent(query)}&lang=${currentLang}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

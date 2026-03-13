@@ -1443,7 +1443,7 @@ async def drug_compatibility(req: CompatRequest):
 
 
 @app.get("/api/drugs/external")
-async def external_drug_info(query: str = Query(..., min_length=1)):
+async def external_drug_info(query: str = Query(..., min_length=1), lang: str = Query("es")):
     """
     Devuelve el resultado crudo de OpenFDA para inspección/debug.
     """
@@ -1451,39 +1451,27 @@ async def external_drug_info(query: str = Query(..., min_length=1)):
     if not raw:
         return {"found": False, "source": "OpenFDA"}
     openfda = raw.get("openfda", {})
+
+    def tr(text: str) -> str:
+        return translate_en_es(text) if lang == "es" else text
+
     return {
-        "found":
-        True,
-        "source":
-        "OpenFDA",
-        "brand_name":
-        _first(openfda.get("brand_name")),
-        "generic_name":
-        _first(openfda.get("generic_name")),
-        "manufacturer":
-        _first(openfda.get("manufacturer_name")),
-        "route":
-        _first(openfda.get("route")),
-        "product_type":
-        _first(openfda.get("product_type")),
-        "pharm_class":
-        _first(openfda.get("pharm_class_epc")),
-        "indications":
-        _first(raw.get("indications_and_usage"), 600),
-        "warnings":
-        _first(raw.get("warnings") or raw.get("warnings_and_cautions"), 600),
-        "dosage_forms":
-        _first(raw.get("dosage_and_administration"), 400),
-        "contraindications":
-        _first(raw.get("contraindications"), 600),
-        "adverse_reactions":
-        _first(raw.get("adverse_reactions"), 600),
-        "pregnancy":
-        _first(raw.get("pregnancy"), 400),
-        "pediatric_use":
-        _first(raw.get("pediatric_use"), 400),
-        "geriatric_use":
-        _first(raw.get("geriatric_use"), 400),
+        "found":        True,
+        "source":       "OpenFDA",
+        "brand_name":   _first(openfda.get("brand_name")),
+        "generic_name": _first(openfda.get("generic_name")),
+        "manufacturer": _first(openfda.get("manufacturer_name")),
+        "route":        _first(openfda.get("route")),
+        "product_type": _first(openfda.get("product_type")),
+        "pharm_class":  _first(openfda.get("pharm_class_epc")),
+        "indications":       tr(_first(raw.get("indications_and_usage"), 600)),
+        "warnings":          tr(_first(raw.get("warnings") or raw.get("warnings_and_cautions"), 600)),
+        "dosage_forms":      tr(_first(raw.get("dosage_and_administration"), 400)),
+        "contraindications": tr(_first(raw.get("contraindications"), 600)),
+        "adverse_reactions": tr(_first(raw.get("adverse_reactions"), 600)),
+        "pregnancy":         tr(_first(raw.get("pregnancy"), 400)),
+        "pediatric_use":     tr(_first(raw.get("pediatric_use"), 400)),
+        "geriatric_use":     tr(_first(raw.get("geriatric_use"), 400)),
     }
 
 
