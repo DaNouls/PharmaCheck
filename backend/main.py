@@ -11,6 +11,8 @@ import httpx
 from typing import Optional, List
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from pydantic import BaseModel
 
 app = FastAPI(title="PharmaCheck API", version="2.0.0")
@@ -703,5 +705,9 @@ async def root():
             "POST /api/drugs/compatibility  {drug_name, patient_text, symptom_text}",
             "GET  /api/drugs/external?query=ibuprofen",
             "GET  /docs  (Swagger UI)",
-        ],
+        ]
     }
+
+_FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
+if _FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
