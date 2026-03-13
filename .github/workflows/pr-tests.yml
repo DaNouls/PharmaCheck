@@ -1,0 +1,134 @@
+name: PR Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install fastapi uvicorn httpx pytest pytest-asyncio anyio pydantic
+          pip install argostranslate || true   # opcional, mockeado en tests
+
+      - name: Run tests
+        id: run_tests
+        run: |
+          python3 -m pytest backend/tests/ -v --tb=short 2>&1 | tee test_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Parse test results
+        id: results
+        if: always()
+        run: |
+          TOTAL=$(grep -E "^(PASSED|FAILED|ERROR)" test_output.txt | wc -l | tr -d ' ')
+          PASSED=$(grep -c "^.*PASSED" test_output.txt || echo 0)
+          FAILED=$(grep -c "^.*FAILED" test_output.txt || echo 0)
+          ERRORS=$(grep -c "^.*ERROR" test_output.txt || echo 0)
+          SUMMARY=$(grep -E "passed|failed|error" test_output.txt | tail -1)
+
+          echo "total=$TOTAL"   >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed  = parseInt('${{ steps.results.outputs.passed }}')  || 0;
+            const failed  = parseInt('${{ steps.results.outputs.failed }}')  || 0;
+            const errors  = parseInt('${{ steps.results.outputs.errors }}')  || 0;
+            const summary = `${{ steps.results.outputs.summary }}`;
+            const exitCode = '${{ steps.run_tests.outputs.exit_code }}';
+
+            const allGreen = failed === 0 && errors === 0;
+
+            const header = allGreen
+              ? `## ✅ Tests pasando — apto para merge`
+              : `## ❌ Tests fallando — NO mergear`;
+
+            const verdict = allGreen
+              ? `> **Todos los tests han pasado.** Esta PR es segura para hacer merge a \`main\`.`
+              : `> **Hay tests fallando.** Revisar los errores antes de mergear a \`main\`.`;
+
+            const badge = allGreen
+              ? `![tests](https://img.shields.io/badge/tests-${passed}%20passed-brightgreen)`
+              : `![tests](https://img.shields.io/badge/tests-${failed}%20failed-red)`;
+
+            // Read raw test output for the details block
+            const fs = require('fs');
+            let rawOutput = '';
+            try {
+              rawOutput = fs.readFileSync('test_output.txt', 'utf8')
+                .split('\n')
+                .filter(l => l.match(/PASSED|FAILED|ERROR|=====|-----/))
+                .join('\n');
+            } catch(e) { rawOutput = 'No se pudo leer la salida.'; }
+
+            const body = [
+              header,
+              '',
+              verdict,
+              '',
+              `${badge}`,
+              '',
+              `| | Resultado |`,
+              `|---|---|`,
+              `| ✅ Passed  | **${passed}** |`,
+              `| ❌ Failed  | **${failed}** |`,
+              `| 💥 Errors  | **${errors}** |`,
+              `| 📋 Resumen | \`${summary}\` |`,
+              '',
+              '<details>',
+              '<summary>Ver detalle de tests</summary>',
+              '',
+              '```',
+              rawOutput,
+              '```',
+              '',
+              '</details>',
+              '',
+              `---`,
+              `*Ejecutado automáticamente por [PR Tests](../actions) · commit \`${{ github.sha }}`.slice(0,7) + \`\`*`,
+            ].join('\n');
+
+            // Delete previous bot comment if exists (keep PR clean)
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments) {
+              if (c.user.type === 'Bot' && c.body.includes('Tests pasando') ||
+                  c.user.type === 'Bot' && c.body.includes('Tests fallando')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
