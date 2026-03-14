@@ -7,6 +7,7 @@ https://open.fda.gov/apis/drug/label/
 import os
 import re
 import json
+import html
 import asyncio
 import httpx
 from difflib import get_close_matches
@@ -61,6 +62,7 @@ app.add_middleware(
 )
 
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
+CIMA_SEARCH_URL = "https://cima.aemps.es/cima/rest/medicamentos"
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
 
@@ -856,6 +858,115 @@ async def enrich_drug_data(med: dict, lang: str) -> dict:
     return med
 
 
+async def fetch_cima_data(query: str) -> Optional[dict]:
+    """
+    Busca en CIMA (AEMPS). Devuelve metadatos del primer resultado relevante o None.
+    Prefiere resultados cuyo principio activo (vtm) coincide exactamente con la búsqueda.
+    """
+    def _parse_item(item: dict) -> dict:
+        vtm_info = item.get("vtm") or {}
+        vias = item.get("viasAdministracion") or []
+        forma = item.get("formaFarmaceutica") or {}
+        return {
+            "nregistro":   str(item.get("nregistro", "")),
+            "nombre":      item.get("nombre", ""),
+            "vtm":         vtm_info.get("nombre", ""),
+            "via":         vias[0].get("nombre", "") if vias else "",
+            "forma":       forma.get("nombre", ""),
+            "laboratorio": item.get("labtitular", ""),
+        }
+
+    q_lower = query.lower().strip()
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        # Try with up to 5 results so we can prefer exact vtm match
+        for search_term in [query, fuzzy_resolve_drug_name(q_lower)]:
+            try:
+                resp = await client.get(CIMA_SEARCH_URL,
+                                        params={"nombre": search_term, "pageSize": 5})
+                if resp.status_code != 200:
+                    continue
+                items = resp.json().get("resultados", [])
+                if not items:
+                    continue
+                # Priority 1: exact vtm match (prevents omeprazol → esomeprazol etc.)
+                for item in items:
+                    vtm = (item.get("vtm") or {}).get("nombre", "").lower()
+                    if vtm and vtm == q_lower:
+                        return _parse_item(item)
+                # Priority 2: nombre starts with query (e.g. "IBUPROFENO CINFA…")
+                for item in items:
+                    nombre = item.get("nombre", "").lower()
+                    if nombre.startswith(q_lower + " ") or nombre.startswith(q_lower):
+                        return _parse_item(item)
+                # No confident match — let OpenFDA handle it
+                return None
+            except Exception:
+                continue
+    return None
+
+
+async def fetch_cima_ficha(nregistro: str) -> dict:
+    """
+    Descarga la ficha técnica HTML de CIMA y extrae las secciones clínicas
+    en español: 4.1 indicaciones, 4.2 posología, 4.3 contraindicaciones,
+    4.8 reacciones adversas.
+    """
+    url = (f"https://cima.aemps.es/cima/dochtml/ft/{nregistro}"
+           f"/FT_{nregistro}.html")
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        try:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return {}
+
+            # Parse HTML: inline elements → space (preserve word flow),
+            # block elements → newline, then unescape entities.
+            _inline = re.compile(
+                r'</?(?:span|a|strong|em|b|i|u|sup|sub|abbr|acronym|cite|'
+                r'code|dfn|kbd|q|samp|time|var)[^>]*>', re.IGNORECASE)
+            src = html.unescape(resp.text)
+            src = _inline.sub(' ', src)          # inline → space
+            text = re.sub(r'<[^>]+>', '\n', src)  # block  → newline
+            text = re.sub(r'[ \t]{2,}', ' ', text)
+            text = re.sub(r'\n[ \t]*\n', '\n\n', text)
+            text = re.sub(r'\n{3,}', '\n\n', text).strip()
+
+            def section(start: str, end: str) -> str:
+                """Extract text of a numbered section, skipping the title line.
+                Only matches section headers (number at start of line)."""
+                m = re.search(rf'(?m)^ *{re.escape(start)}\b', text)
+                if not m:
+                    return ""
+                rest = text[m.end():]
+                # Skip the title line (first non-blank line after the section number)
+                lines = rest.split('\n')
+                i = 0
+                while i < len(lines) and not lines[i].strip():
+                    i += 1  # skip leading blank lines
+                i += 1      # skip title line itself
+                while i < len(lines) and not lines[i].strip():
+                    i += 1  # skip blank lines after title
+                content = '\n'.join(lines[i:])
+                m2 = re.search(rf'(?m)^ *{re.escape(end)}\b', content)
+                return (content[:m2.start()].strip() if m2 else content[:2000].strip())[:2000]
+
+            def clean(s: str) -> str:
+                """Remove blank/whitespace-only lines and collapse spacing."""
+                lines = [ln.rstrip() for ln in s.split('\n')]
+                lines = [ln for ln in lines if ln.strip()]
+                return '\n'.join(lines)
+
+            return {
+                "indicaciones":        clean(section("4.1", "4.2")),
+                "posologia":           clean(section("4.2", "4.3")),
+                "contraindicaciones":  clean(section("4.3", "4.4")),
+                "reacciones_adversas": clean(section("4.8", "4.9")),
+            }
+        except Exception:
+            return {}
+
+
 async def fetch_openfda_raw(query: str) -> Optional[dict]:
     """
     Busca en OpenFDA. Traduce nombres europeos/españoles a inglés (FDA) si es necesario.
@@ -1461,39 +1572,100 @@ def build_explanation(verdict: str, med_name: str, suit_text: str) -> str:
 @app.get("/api/drugs/search")
 async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("es")):
     """
-    Busca un medicamento en OpenFDA y devuelve su ficha estructurada.
-    - Nombre y clase se traducen con diccionarios estáticos (siempre fiable).
-    - uses/dosage y funFact se enriquecen con Gemini cuando está disponible.
+    Busca un medicamento y devuelve su ficha estructurada.
+    - lang=es: CIMA (AEMPS) como fuente primaria de contenido clínico en español;
+               OpenFDA para datos estructurados de compatibilidad.
+               Fallback: deep-translator cuando CIMA no tiene el campo.
+    - lang=en: sólo OpenFDA.
     """
-    raw = await fetch_openfda_raw(query)
-    if not raw:
+    if lang == "es":
+        raw, cima_meta = await asyncio.gather(
+            fetch_openfda_raw(query),
+            fetch_cima_data(query),
+        )
+    else:
+        raw = await fetch_openfda_raw(query)
+        cima_meta = None
+
+    if not raw and not cima_meta:
         return {"found": False, "drug": None}
 
-    drug = openfda_to_drug(raw)
+    # ── Estructura base desde OpenFDA (tiene datos de compatibilidad) ──────────
+    if raw:
+        drug = openfda_to_drug(raw)
+    else:
+        # Solo CIMA disponible — esqueleto mínimo
+        drug = {
+            "name":        (cima_meta.get("vtm") or cima_meta.get("nombre") or query).title(),
+            "class":       "Medicamento",
+            "emoji":       "💊",
+            "dosage":      "",
+            "uses":        "",
+            "sideEffects": [],
+            "restrictions": [],
+            "notFor":      [],
+            "fact":        "",
+            "sources":     [],
+            "compat":      {},
+        }
 
     if lang == "es":
-        # 1. Nombre: diccionario estático
-        openfda_section = raw.get("openfda", {})
-        generic_fda = (openfda_section.get("generic_name") or [""])[0].lower().strip()
-        if generic_fda in SPANISH_NAMES:
-            drug["name"] = SPANISH_NAMES[generic_fda]
-        elif query.lower().strip() in NAME_TRANSLATIONS:
-            drug["name"] = query.strip().title()
+        # ── 1. Nombre ─────────────────────────────────────────────────────────
+        if cima_meta:
+            vtm = cima_meta.get("vtm", "")
+            drug["name"] = vtm.title() if vtm else cima_meta.get("nombre", drug["name"]).title()
+        else:
+            openfda_section = (raw or {}).get("openfda", {})
+            generic_fda = (openfda_section.get("generic_name") or [""])[0].lower().strip()
+            if generic_fda in SPANISH_NAMES:
+                drug["name"] = SPANISH_NAMES[generic_fda]
+            elif query.lower().strip() in NAME_TRANSLATIONS:
+                drug["name"] = query.strip().title()
 
-        # 2. Clase farmacológica: diccionario estático
+        # ── 2. Clase farmacológica ─────────────────────────────────────────────
         drug["class"] = translate_class_to_es(drug["class"])
 
-        # 3. uses / dosage / sideEffects / restrictions / notFor: LibreTranslate local
-        if _lt_ready:
-            if drug.get("uses"):
-                drug["uses"] = translate_en_es(drug["uses"])
-            if drug.get("dosage"):
-                drug["dosage"] = translate_en_es(drug["dosage"])
-            drug["sideEffects"]  = [translate_en_es(e) for e in drug.get("sideEffects", [])]
+        # ── 3. Contenido clínico desde ficha CIMA (ya en español) ─────────────
+        ficha: dict = {}
+        if cima_meta and cima_meta.get("nregistro"):
+            ficha = await fetch_cima_ficha(cima_meta["nregistro"])
+
+        if ficha.get("indicaciones"):
+            drug["uses"] = ficha["indicaciones"]
+        elif _lt_ready and drug.get("uses"):
+            drug["uses"] = translate_en_es(drug["uses"])
+
+        if ficha.get("posologia"):
+            # Skip subsection headers (e.g. "4.2.1. Posología") to get actual text
+            for _line in ficha["posologia"].split('\n'):
+                _line = _line.strip()
+                if _line and not re.match(r'^\d+\.\d+\.', _line):
+                    drug["dosage"] = _line[:250]
+                    break
+        elif _lt_ready and drug.get("dosage"):
+            drug["dosage"] = translate_en_es(drug["dosage"])
+
+        if ficha.get("contraindicaciones"):
+            drug["restrictions"] = _split_to_list(ficha["contraindicaciones"], 6)
+            drug["notFor"] = drug["restrictions"][:3]
+        elif _lt_ready:
             drug["restrictions"] = [translate_en_es(e) for e in drug.get("restrictions", [])]
             drug["notFor"]       = [translate_en_es(e) for e in drug.get("notFor", [])]
 
-    # 4. funFact vía Gemini (opcional, falla silenciosamente)
+        if ficha.get("reacciones_adversas"):
+            drug["sideEffects"] = _split_to_list(ficha["reacciones_adversas"], 8)
+        elif _lt_ready:
+            drug["sideEffects"] = [translate_en_es(e) for e in drug.get("sideEffects", [])]
+
+        # ── 4. Añadir fuente CIMA si fue usada ────────────────────────────────
+        if cima_meta and cima_meta.get("nregistro"):
+            nreg = cima_meta["nregistro"]
+            drug["sources"] = [{
+                "label": "CIMA AEMPS",
+                "url":   f"https://cima.aemps.es/cima/publico/detalle.html?nregistro={nreg}"
+            }] + drug.get("sources", [])
+
+    # ── 5. funFact vía Gemini (opcional, falla silenciosamente) ───────────────
     drug = await enrich_drug_data(drug, lang)
 
     return {"found": True, "drug": drug}
