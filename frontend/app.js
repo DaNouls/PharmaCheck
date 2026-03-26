@@ -101,7 +101,6 @@ const i18n = {
     compat_no_risks:  'No se identificaron factores de riesgo específicos en la información del paciente.',
     compat_gen_risks: 'Factores de riesgo generales identificados:',
     ai_label:         '✨ IA',
-    lang_btn:         'EN',
   },
   en: {
     hero_title:       'Drug Evaluation',
@@ -169,7 +168,207 @@ const i18n = {
     compat_no_risks:  'No specific risk factors identified in the patient information.',
     compat_gen_risks: 'General risk factors identified:',
     ai_label:         '✨ AI',
-    lang_btn:         'ES',
+  },
+  fr: {
+    hero_title:       'Évaluation des médicaments',
+    hero_sub:         'Consultez la fiche technique de tout médicament ou analysez sa compatibilité avec un patient en quelques secondes.',
+    label_med:        '💊 Médicament',
+    ph_med:           'Nom du médicament',
+    label_patient:    '🧑‍⚕️ Informations du patient',
+    ph_patient:       'symptômes, conditions, âge, grossesse, allergies…',
+    toggle_label:     'Compatibilité',
+    btn_sheet:        'Fiche médicament',
+    btn_compat:       'Analyse de compatibilité',
+    btn_back_sheet:   '← Autre médicament',
+    btn_back_compat:  '← Autre cas',
+    err_empty:        "Veuillez saisir le nom d'un médicament.",
+    err_server:       '⚠️ Impossible de se connecter au serveur.',
+    loading_sheet:    'Consultation de la base de données médicale…',
+    loading_compat:   'Génération du rapport avec Gemini AI…',
+    v_suitable:       'Approprié',
+    v_risky:          'Potentiellement risqué',
+    v_not_rec:        'Déconseillé',
+    v_uncertain:      'Incertain',
+    sources_label:    '📚 Sources :',
+    ext_title:        '🌐 Données OpenFDA (officielles)',
+    ext_brand:        'Nom commercial :',
+    ext_generic:      'Nom générique :',
+    ext_manufacturer: 'Fabricant :',
+    ext_route:        'Voie :',
+    ext_indications:  'Indications (FDA) :',
+    ext_warnings:     'Mises en garde (FDA) :',
+    s_uses:           '🎯 Indications thérapeutiques',
+    s_effects:        '⚠️ Effets secondaires',
+    s_when_not:       '🚫 Quand NE PAS utiliser',
+    s_restrictions:   '⚙️ Restrictions',
+    s_official_info:  'Informations officielles',
+    s_fun_fact:       '💡 Le saviez-vous ?',
+    unknown_class:    'Médicament — classe non identifiée',
+    unknown_dosage:   'Consulter la notice ou un professionnel de santé',
+    unknown_section:  'ℹ️ Information non disponible',
+    unknown_body:     "n'a pas été reconnu dans la base de données. Consultez les sources officielles.",
+    gemini_ai_title:  'Analyse IA :',
+    gemini_badge:     '✨ Gemini AI',
+    gemini_sub:       'Rapport généré par intelligence artificielle · À titre indicatif seulement',
+    gemini_summary:   '📋 Résumé',
+    gemini_suit:      '🎯 Adéquation pour la condition',
+    gemini_risks:     '🛡️ Facteurs de risque identifiés',
+    gemini_eval:      '📄 Évaluation clinique',
+    gemini_recs:      '✅ Recommandations',
+    gemini_alts:      '🔄 Alternatives possibles',
+    no_side_effects:  'Aucun effet secondaire significatif identifié.',
+    no_restrictions:  'Aucune contre-indication significative identifiée.',
+    consult_leaflet:  'Consulter la notice officielle pour des informations complètes.',
+    gemini_no_risks:  'Aucun facteur de risque spécifique identifié pour ce patient.',
+    gemini_def_recs:  'Suivre les instructions de la notice officielle.',
+    gemini_err_title: 'Erreur Gemini',
+    risk_alto:        'ÉLEVÉ',
+    risk_medio:       'MOYEN',
+    risk_bajo:        'FAIBLE',
+    compat_title:     'Analyse de compatibilité :',
+    compat_sub:       'Évaluation pour le profil patient décrit',
+    compat_suit:      '🎯 Adéquation pour la condition',
+    compat_safety:    '🛡️ Sécurité du patient',
+    compat_expl:      '📋 Explication',
+    compat_alts:      '🔄 Alternatives possibles',
+    compat_alts_desc: 'Les alternatives suivantes pourraient être plus adaptées. Cliquez pour voir leur fiche.',
+    compat_no_risks:  'Aucun facteur de risque spécifique identifié.',
+    compat_gen_risks: 'Facteurs de risque généraux identifiés :',
+    ai_label:         '✨ IA',
+  },
+  it: {
+    hero_title:       'Valutazione dei farmaci',
+    hero_sub:         'Consulta la scheda tecnica di qualsiasi farmaco o analizza la sua compatibilità con un paziente in pochi secondi.',
+    label_med:        '💊 Farmaco',
+    ph_med:           'Nome del farmaco',
+    label_patient:    '🧑‍⚕️ Informazioni del paziente',
+    ph_patient:       'sintomi, condizioni, età, gravidanza, allergie…',
+    toggle_label:     'Compatibilità',
+    btn_sheet:        'Scheda farmaco',
+    btn_compat:       'Analisi di compatibilità',
+    btn_back_sheet:   '← Altro farmaco',
+    btn_back_compat:  '← Altro caso',
+    err_empty:        'Inserire il nome di un farmaco.',
+    err_server:       '⚠️ Impossibile connettersi al server.',
+    loading_sheet:    'Consultazione della banca dati medica…',
+    loading_compat:   'Generazione del report con Gemini AI…',
+    v_suitable:       'Adatto',
+    v_risky:          'Potenzialmente rischioso',
+    v_not_rec:        'Non raccomandato',
+    v_uncertain:      'Incerto',
+    sources_label:    '📚 Fonti:',
+    ext_title:        '🌐 Dati OpenFDA (ufficiali)',
+    ext_brand:        'Nome commerciale:',
+    ext_generic:      'Nome generico:',
+    ext_manufacturer: 'Produttore:',
+    ext_route:        'Via:',
+    ext_indications:  'Indicazioni (FDA):',
+    ext_warnings:     'Avvertenze (FDA):',
+    s_uses:           '🎯 A cosa serve',
+    s_effects:        '⚠️ Effetti indesiderati',
+    s_when_not:       '🚫 Quando NON usare',
+    s_restrictions:   '⚙️ Restrizioni',
+    s_official_info:  'Informazioni ufficiali',
+    s_fun_fact:       '💡 Lo sapevi?',
+    unknown_class:    'Farmaco — classe non identificata',
+    unknown_dosage:   'Consultare il foglietto illustrativo o un professionista sanitario',
+    unknown_section:  'ℹ️ Informazione non disponibile',
+    unknown_body:     'non è stato riconosciuto nel database. Consulta le fonti ufficiali.',
+    gemini_ai_title:  'Analisi IA:',
+    gemini_badge:     '✨ Gemini AI',
+    gemini_sub:       'Report generato da intelligenza artificiale · Solo orientativo',
+    gemini_summary:   '📋 Riepilogo',
+    gemini_suit:      '🎯 Adeguatezza per la condizione',
+    gemini_risks:     '🛡️ Fattori di rischio identificati',
+    gemini_eval:      '📄 Valutazione clinica',
+    gemini_recs:      '✅ Raccomandazioni',
+    gemini_alts:      '🔄 Alternative possibili',
+    no_side_effects:  'Nessun effetto indesiderato rilevante identificato.',
+    no_restrictions:  'Nessuna controindicazione rilevante identificata.',
+    consult_leaflet:  'Consultare il foglietto illustrativo ufficiale per informazioni complete.',
+    gemini_no_risks:  'Nessun fattore di rischio specifico identificato per questo paziente.',
+    gemini_def_recs:  'Seguire le istruzioni del foglietto illustrativo ufficiale.',
+    gemini_err_title: 'Errore Gemini',
+    risk_alto:        'ALTO',
+    risk_medio:       'MEDIO',
+    risk_bajo:        'BASSO',
+    compat_title:     'Analisi di compatibilità:',
+    compat_sub:       'Valutazione per il profilo paziente descritto',
+    compat_suit:      '🎯 Adeguatezza per la condizione',
+    compat_safety:    '🛡️ Sicurezza del paziente',
+    compat_expl:      '📋 Spiegazione',
+    compat_alts:      '🔄 Alternative possibili',
+    compat_alts_desc: 'Le seguenti alternative potrebbero essere più adatte. Clicca per vedere la scheda.',
+    compat_no_risks:  'Nessun fattore di rischio specifico identificato.',
+    compat_gen_risks: 'Fattori di rischio generali identificati:',
+    ai_label:         '✨ IA',
+  },
+  de: {
+    hero_title:       'Medikamentenbewertung',
+    hero_sub:         'Rufen Sie das Datenblatt eines Medikaments ab oder analysieren Sie die Verträglichkeit mit einem Patientenprofil in Sekunden.',
+    label_med:        '💊 Medikament',
+    ph_med:           'Medikamentenname',
+    label_patient:    '🧑‍⚕️ Patienteninformationen',
+    ph_patient:       'Symptome, Erkrankungen, Alter, Schwangerschaft, Allergien…',
+    toggle_label:     'Verträglichkeit',
+    btn_sheet:        'Medikamentenblatt',
+    btn_compat:       'Verträglichkeitsanalyse',
+    btn_back_sheet:   '← Anderes Medikament',
+    btn_back_compat:  '← Anderer Fall',
+    err_empty:        'Bitte geben Sie einen Medikamentennamen ein.',
+    err_server:       '⚠️ Verbindung zum Server fehlgeschlagen.',
+    loading_sheet:    'Medizinische Datenbank wird abgefragt…',
+    loading_compat:   'Bericht mit Gemini AI wird erstellt…',
+    v_suitable:       'Geeignet',
+    v_risky:          'Potenziell riskant',
+    v_not_rec:        'Nicht empfohlen',
+    v_uncertain:      'Ungewiss',
+    sources_label:    '📚 Quellen:',
+    ext_title:        '🌐 OpenFDA-Daten (offiziell)',
+    ext_brand:        'Handelsname:',
+    ext_generic:      'Wirkstoffname:',
+    ext_manufacturer: 'Hersteller:',
+    ext_route:        'Verabreichungsweg:',
+    ext_indications:  'Indikationen (FDA):',
+    ext_warnings:     'Warnhinweise (FDA):',
+    s_uses:           '🎯 Anwendungsgebiete',
+    s_effects:        '⚠️ Nebenwirkungen',
+    s_when_not:       '🚫 Wann NICHT anwenden',
+    s_restrictions:   '⚙️ Einschränkungen',
+    s_official_info:  'Offizielle Informationen',
+    s_fun_fact:       '💡 Wussten Sie schon?',
+    unknown_class:    'Medikament — Klasse nicht identifiziert',
+    unknown_dosage:   'Beipackzettel oder Fachpersonal konsultieren',
+    unknown_section:  'ℹ️ Information nicht verfügbar',
+    unknown_body:     'wurde nicht in der Datenbank erkannt. Konsultieren Sie offizielle Quellen.',
+    gemini_ai_title:  'KI-Analyse:',
+    gemini_badge:     '✨ Gemini AI',
+    gemini_sub:       'Bericht von künstlicher Intelligenz erstellt · Nur zur Orientierung',
+    gemini_summary:   '📋 Zusammenfassung',
+    gemini_suit:      '🎯 Eignung für die Erkrankung',
+    gemini_risks:     '🛡️ Identifizierte Risikofaktoren',
+    gemini_eval:      '📄 Klinische Bewertung',
+    gemini_recs:      '✅ Empfehlungen',
+    gemini_alts:      '🔄 Mögliche Alternativen',
+    no_side_effects:  'Keine relevanten Nebenwirkungen identifiziert.',
+    no_restrictions:  'Keine relevanten Kontraindikationen identifiziert.',
+    consult_leaflet:  'Beipackzettel für vollständige Informationen konsultieren.',
+    gemini_no_risks:  'Keine spezifischen Risikofaktoren für diesen Patienten identifiziert.',
+    gemini_def_recs:  'Anweisungen im offiziellen Beipackzettel befolgen.',
+    gemini_err_title: 'Gemini-Fehler',
+    risk_alto:        'HOCH',
+    risk_medio:       'MITTEL',
+    risk_bajo:        'NIEDRIG',
+    compat_title:     'Verträglichkeitsanalyse:',
+    compat_sub:       'Bewertung für das beschriebene Patientenprofil',
+    compat_suit:      '🎯 Eignung für die Erkrankung',
+    compat_safety:    '🛡️ Patientensicherheit',
+    compat_expl:      '📋 Erklärung',
+    compat_alts:      '🔄 Mögliche Alternativen',
+    compat_alts_desc: 'Die folgenden Alternativen könnten besser geeignet sein. Klicken Sie für das Datenblatt.',
+    compat_no_risks:  'Keine spezifischen Risikofaktoren in den Patientendaten identifiziert.',
+    compat_gen_risks: 'Allgemeine Risikofaktoren identifiziert:',
+    ai_label:         '✨ KI',
   },
 };
 
@@ -184,14 +383,15 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
   });
-  const langBtn = document.getElementById('lang-btn');
-  if (langBtn) langBtn.textContent = t('lang_btn');
   document.documentElement.lang = currentLang;
+  document.querySelectorAll('.lang-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === currentLang);
+  });
   updateActionBtn();
 }
 
-function toggleLang() {
-  currentLang = currentLang === 'es' ? 'en' : 'es';
+function setLang(lang) {
+  currentLang = lang;
   localStorage.setItem('pharma_lang', currentLang);
   applyLang();
 }
@@ -701,7 +901,24 @@ async function handleAction() {
 
 document.getElementById('toggle-btn').addEventListener('click', toggleMode);
 document.getElementById('action-btn').addEventListener('click', handleAction);
-document.getElementById('lang-btn').addEventListener('click', toggleLang);
+const langGlobeBtn = document.getElementById('lang-globe-btn');
+const langDropdown = document.getElementById('lang-dropdown');
+
+langGlobeBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  langDropdown.classList.toggle('open');
+});
+
+document.querySelectorAll('.lang-option').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setLang(btn.dataset.lang);
+    langDropdown.classList.remove('open');
+  });
+});
+
+document.addEventListener('click', () => {
+  langDropdown.classList.remove('open');
+});
 document.getElementById('theme-btn').addEventListener('click', toggleTheme);
 
 document.getElementById('med-input').addEventListener('keydown', e => {
