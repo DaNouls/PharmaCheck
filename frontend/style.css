@@ -148,22 +148,62 @@ header {
   border-color: var(--blue);
   background: var(--blue-light);
 }
-.lang-btn {
-  padding: 6px 18px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  border: 2px solid var(--blue);
-  background: transparent;
-  color: var(--blue);
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all var(--transition);
+.lang-selector {
+  position: relative;
   flex-shrink: 0;
 }
-.lang-btn:hover {
-  background: var(--blue);
-  color: var(--surface);
+.lang-globe-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.lang-globe-btn:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.lang-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 200;
+  min-width: 140px;
+}
+.lang-dropdown.open {
+  display: block;
+}
+.lang-option {
+  display: block;
+  width: 100%;
+  padding: 9px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: background var(--transition);
+  white-space: nowrap;
+}
+.lang-option:hover {
+  background: var(--blue-light);
+}
+.lang-option.active {
+  font-weight: 700;
+  color: var(--blue);
 }
 
 /* ── MAIN ── */
@@ -810,5 +850,4 @@ main {
   .sources-bar { justify-content: center; }
   .patient-input-wrap.visible { max-width: 100%; }
   .input-row { flex-wrap: wrap; }
-  .lang-btn { padding: 6px 12px; }
 }
