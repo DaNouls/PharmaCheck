@@ -132,14 +132,19 @@ async def _translate_fields_parallel(drug: dict, lang: str) -> None:
     if not ne_a and not ne_b:
         return
 
-    async def _do_batch(ne, texts, tgt):
+    _GT_URL = "https://translate.googleapis.com/translate_a/single"
+
+    async def _do_batch(ne, texts, tgt, client):
         if not ne:
             return
         combined = _TRANS_SEP.join(t for _, t in ne)
         try:
-            result = await asyncio.to_thread(
-                GoogleTranslator(source="en", target=tgt).translate, combined
+            resp = await client.get(
+                _GT_URL,
+                params={"client": "gtx", "sl": "en", "tl": tgt, "dt": "t", "q": combined},
             )
+            data = resp.json()
+            result = "".join(part[0] for part in data[0] if part[0])
             parts = [p.strip() for p in result.split("[[[|||]]]")]
             for li, (orig_idx, _) in enumerate(ne):
                 if li < len(parts):
@@ -147,11 +152,12 @@ async def _translate_fields_parallel(drug: dict, lang: str) -> None:
         except Exception:
             pass  # texto original intacto
 
-    # Ambos batches corren en paralelo
-    await asyncio.gather(
-        _do_batch(ne_a, texts_a, lang),
-        _do_batch(ne_b, texts_b, lang),
-    )
+    # Ambos batches comparten cliente httpx (conexión reutilizada) y corren en paralelo
+    async with httpx.AsyncClient(timeout=15) as client:
+        await asyncio.gather(
+            _do_batch(ne_a, texts_a, lang, client),
+            _do_batch(ne_b, texts_b, lang, client),
+        )
 
     drug["uses"]         = texts_a[0]
     drug["dosage"]       = texts_a[1]

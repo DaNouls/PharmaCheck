@@ -6,7 +6,7 @@ Run with:  pytest backend/tests/ -v
 import sys
 import os
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 
 # Add backend to path so we can import main without running the server
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -572,9 +572,36 @@ class TestDrugCache:
 # ─────────────────────────────────────────
 
 class TestBatchTranslation:
+    def _gt_mock(responses_by_keyword: dict):
+        """
+        Crea un AsyncMock de httpx.AsyncClient que responde a llamadas .get()
+        según si la query contiene alguna de las claves del dict.
+        responses_by_keyword: {"keyword": "translated [[[|||]]] result", ...}
+        El primer match gana; si ninguna coincide usa el último valor.
+        """
+        get_calls = []
+
+        async def fake_get(url, params=None, **kwargs):
+            q = (params or {}).get("q", "")
+            get_calls.append(q)
+            result = list(responses_by_keyword.values())[-1]
+            for kw, val in responses_by_keyword.items():
+                if kw in q.lower():
+                    result = val
+                    break
+            resp = MagicMock()
+            resp.json.return_value = [[[result, q]]]
+            return resp
+
+        mock_client = MagicMock()
+        mock_client.get = fake_get
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        return mock_client, get_calls
+
     @pytest.mark.asyncio
     async def test_batch_translates_all_fields(self):
-        """_translate_fields_parallel usa DOS requests paralelos (batch A y batch B)."""
+        """_translate_fields_parallel usa DOS requests httpx paralelos (batch A y batch B)."""
         drug = {
             "uses": "For relief of pain and fever.",
             "dosage": "Take one tablet every 4-6 hours.",
@@ -582,25 +609,14 @@ class TestBatchTranslation:
             "notFor": ["Children under 12"],
             "sideEffects": ["Nausea", "Headache"],
         }
-        # Batch A: uses + dosage + restrictions
-        batch_a_result = "Para alivio del dolor [[[|||]]] Tome una tableta [[[|||]]] Alergia a AINEs"
-        # Batch B: notFor + sideEffects
-        batch_b_result = "Niños menores de 12 [[[|||]]] Náuseas [[[|||]]] Dolor de cabeza"
-
-        call_count = 0
-        def fake_translate(text):
-            nonlocal call_count
-            call_count += 1
-            if "pain" in text or "fever" in text:
-                return batch_a_result
-            return batch_b_result
-
-        with patch.object(main_module, "GoogleTranslator") as mock_gt:
-            mock_gt.return_value.translate.side_effect = fake_translate
+        mock_client, get_calls = TestBatchTranslation._gt_mock({
+            "pain": "Para alivio del dolor [[[|||]]] Tome una tableta [[[|||]]] Alergia a AINEs",
+            "children": "Niños menores de 12 [[[|||]]] Náuseas [[[|||]]] Dolor de cabeza",
+        })
+        with patch.object(main_module.httpx, "AsyncClient", return_value=mock_client):
             await _translate_fields_parallel(drug, "fr")
 
-        # GoogleTranslator fue llamado DOS veces (batch A y batch B en paralelo)
-        assert mock_gt.call_count == 2
+        assert len(get_calls) == 2
         assert drug["uses"] == "Para alivio del dolor"
         assert drug["dosage"] == "Tome una tableta"
         assert drug["restrictions"] == ["Alergia a AINEs"]
@@ -609,30 +625,33 @@ class TestBatchTranslation:
 
     @pytest.mark.asyncio
     async def test_batch_skips_en_and_es(self):
-        """_translate_fields_parallel no hace nada para en/es."""
+        """_translate_fields_parallel no hace nada para en/es (no llama a httpx)."""
         drug = {"uses": "Pain relief", "dosage": "One tablet", "restrictions": [], "notFor": [], "sideEffects": []}
-        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+        with patch.object(main_module.httpx, "AsyncClient") as mock_cls:
             await _translate_fields_parallel(drug, "en")
             await _translate_fields_parallel(drug, "es")
-        mock_gt.assert_not_called()
+        mock_cls.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_batch_handles_empty_fields_gracefully(self):
-        """Campos vacíos no causan errores ni se traducen."""
+        """Campos vacíos no causan errores ni llaman a httpx."""
         drug = {"uses": "", "dosage": "", "restrictions": [], "notFor": [], "sideEffects": []}
-        # No debería llamar a GoogleTranslator si no hay nada que traducir
-        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+        with patch.object(main_module.httpx, "AsyncClient") as mock_cls:
             await _translate_fields_parallel(drug, "fr")
-        mock_gt.assert_not_called()
+        mock_cls.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_batch_survives_translator_error(self):
-        """Si Google Translate falla, el drug dict queda con el texto original."""
+        """Si httpx falla, el drug dict queda con el texto original."""
+        import httpx as httpx_lib
         drug = {"uses": "Pain relief", "dosage": "One tablet", "restrictions": [], "notFor": [], "sideEffects": []}
-        with patch.object(main_module, "GoogleTranslator") as mock_gt:
-            mock_gt.return_value.translate.side_effect = Exception("Network error")
-            await _translate_fields_parallel(drug, "fr")  # no debe lanzar excepción
-        assert drug["uses"] == "Pain relief"  # texto original intacto
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=httpx_lib.ConnectError("Network error"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with patch.object(main_module.httpx, "AsyncClient", return_value=mock_client):
+            await _translate_fields_parallel(drug, "fr")
+        assert drug["uses"] == "Pain relief"
 
 
 # ─────────────────────────────────────────
