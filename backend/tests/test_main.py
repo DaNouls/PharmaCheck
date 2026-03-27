@@ -25,6 +25,10 @@ from backend.main import (
         _infer_verdict,
         _first,
         _drug_class,
+        _cache_get,
+        _cache_set,
+        _translate_fields_parallel,
+        _fetch_cima_full,
     )
 
 
@@ -495,3 +499,195 @@ class TestApiEndpoints:
         data = resp.json()
         assert data["found"] is True
         assert data["verdict"] in ("suitable", "risky", "not-recommended", "uncertain")
+
+
+# ─────────────────────────────────────────
+# OPTIMIZACIÓN 1: Cache en memoria
+# ─────────────────────────────────────────
+
+class TestDrugCache:
+    def test_cache_miss_returns_none(self):
+        """Cache vacío devuelve None."""
+        main_module._DRUG_CACHE.clear()
+        assert _cache_get("ibuprofen_en") is None
+
+    def test_cache_set_and_get(self):
+        """Set seguido de get devuelve los datos."""
+        main_module._DRUG_CACHE.clear()
+        data = {"found": True, "drug": {"name": "Advil"}}
+        _cache_set("ibuprofen_en", data)
+        result = _cache_get("ibuprofen_en")
+        assert result is not None
+        assert result["drug"]["name"] == "Advil"
+
+    def test_cache_hit_increments_counter(self):
+        """Cada get incrementa el contador de hits."""
+        main_module._DRUG_CACHE.clear()
+        _cache_set("ibuprofen_en", {"found": True, "drug": {}})
+        _cache_get("ibuprofen_en")
+        _cache_get("ibuprofen_en")
+        assert main_module._DRUG_CACHE["ibuprofen_en"]["hits"] == 3  # 1 inicial + 2 gets
+
+    def test_cache_counter_never_resets(self):
+        """El contador nunca se resetea, solo sube."""
+        main_module._DRUG_CACHE.clear()
+        _cache_set("x_en", {"found": True, "drug": {}})
+        for _ in range(25):
+            _cache_get("x_en")
+        assert main_module._DRUG_CACHE["x_en"]["hits"] == 26  # 1 + 25
+
+    def test_cache_forces_refresh_every_n_hits(self):
+        """Cada CACHE_REFRESH_EVERY hits totales devuelve None para forzar refresco.
+        _cache_set inicializa hits=1, así que el primer None ocurre a los (n-1) gets."""
+        main_module._DRUG_CACHE.clear()
+        _cache_set("y_en", {"found": True, "drug": {}})  # hits = 1
+        n = main_module._CACHE_REFRESH_EVERY
+        # gets 1..(n-2): hits llegan a n-1, todos non-None
+        for _ in range(n - 2):
+            assert _cache_get("y_en") is not None
+        # get n-1: hits totales = n → n % n == 0 → None (fuerza refresco)
+        assert _cache_get("y_en") is None
+
+    def test_search_endpoint_caches_result(self):
+        """El endpoint /search guarda el resultado en caché."""
+        main_module._DRUG_CACHE.clear()
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)), \
+             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+            client.get("/api/drugs/search?query=ibuprofen&lang=en")
+        assert "ibuprofen_en" in main_module._DRUG_CACHE
+
+    def test_cache_hit_skips_openfda_call(self):
+        """En cache hit, fetch_openfda_raw NO se vuelve a llamar."""
+        main_module._DRUG_CACHE.clear()
+        mock_fetch = AsyncMock(return_value=SAMPLE_RAW)
+        with patch.object(main_module, "fetch_openfda_raw", new=mock_fetch), \
+             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+            client.get("/api/drugs/search?query=ibuprofen&lang=en")  # primera: llena caché
+            client.get("/api/drugs/search?query=ibuprofen&lang=en")  # segunda: usa caché
+        assert mock_fetch.call_count == 1  # solo una llamada real a OpenFDA
+
+
+# ─────────────────────────────────────────
+# OPTIMIZACIÓN 2: Traducciones en batch
+# ─────────────────────────────────────────
+
+class TestBatchTranslation:
+    @pytest.mark.asyncio
+    async def test_batch_translates_all_fields(self):
+        """_translate_fields_parallel usa DOS requests paralelos (batch A y batch B)."""
+        drug = {
+            "uses": "For relief of pain and fever.",
+            "dosage": "Take one tablet every 4-6 hours.",
+            "restrictions": ["Allergy to NSAIDs"],
+            "notFor": ["Children under 12"],
+            "sideEffects": ["Nausea", "Headache"],
+        }
+        # Batch A: uses + dosage + restrictions
+        batch_a_result = "Para alivio del dolor [[[|||]]] Tome una tableta [[[|||]]] Alergia a AINEs"
+        # Batch B: notFor + sideEffects
+        batch_b_result = "Niños menores de 12 [[[|||]]] Náuseas [[[|||]]] Dolor de cabeza"
+
+        call_count = 0
+        def fake_translate(text):
+            nonlocal call_count
+            call_count += 1
+            if "pain" in text or "fever" in text:
+                return batch_a_result
+            return batch_b_result
+
+        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+            mock_gt.return_value.translate.side_effect = fake_translate
+            await _translate_fields_parallel(drug, "fr")
+
+        # GoogleTranslator fue llamado DOS veces (batch A y batch B en paralelo)
+        assert mock_gt.call_count == 2
+        assert drug["uses"] == "Para alivio del dolor"
+        assert drug["dosage"] == "Tome una tableta"
+        assert drug["restrictions"] == ["Alergia a AINEs"]
+        assert drug["notFor"] == ["Niños menores de 12"]
+        assert drug["sideEffects"] == ["Náuseas", "Dolor de cabeza"]
+
+    @pytest.mark.asyncio
+    async def test_batch_skips_en_and_es(self):
+        """_translate_fields_parallel no hace nada para en/es."""
+        drug = {"uses": "Pain relief", "dosage": "One tablet", "restrictions": [], "notFor": [], "sideEffects": []}
+        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+            await _translate_fields_parallel(drug, "en")
+            await _translate_fields_parallel(drug, "es")
+        mock_gt.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_handles_empty_fields_gracefully(self):
+        """Campos vacíos no causan errores ni se traducen."""
+        drug = {"uses": "", "dosage": "", "restrictions": [], "notFor": [], "sideEffects": []}
+        # No debería llamar a GoogleTranslator si no hay nada que traducir
+        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+            await _translate_fields_parallel(drug, "fr")
+        mock_gt.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batch_survives_translator_error(self):
+        """Si Google Translate falla, el drug dict queda con el texto original."""
+        drug = {"uses": "Pain relief", "dosage": "One tablet", "restrictions": [], "notFor": [], "sideEffects": []}
+        with patch.object(main_module, "GoogleTranslator") as mock_gt:
+            mock_gt.return_value.translate.side_effect = Exception("Network error")
+            await _translate_fields_parallel(drug, "fr")  # no debe lanzar excepción
+        assert drug["uses"] == "Pain relief"  # texto original intacto
+
+
+# ─────────────────────────────────────────
+# OPTIMIZACIÓN 3: CIMA completo en paralelo
+# ─────────────────────────────────────────
+
+class TestCimaParallel:
+    @pytest.mark.asyncio
+    async def test_fetch_cima_full_returns_meta_and_ficha(self):
+        """_fetch_cima_full devuelve (meta, ficha) cuando nregistro existe."""
+        meta = {"nregistro": "12345", "nombre": "Ibuprofeno", "vtm": "ibuprofeno"}
+        ficha = {"indicaciones": "Para el dolor.", "posologia": "400mg cada 8h."}
+
+        with patch.object(main_module, "fetch_cima_data", new=AsyncMock(return_value=meta)), \
+             patch.object(main_module, "fetch_cima_ficha", new=AsyncMock(return_value=ficha)):
+            result_meta, result_ficha = await _fetch_cima_full("ibuprofeno")
+
+        assert result_meta == meta
+        assert result_ficha == ficha
+
+    @pytest.mark.asyncio
+    async def test_fetch_cima_full_no_nregistro_skips_ficha(self):
+        """Si cima_data no tiene nregistro, no llama a fetch_cima_ficha."""
+        meta = {"nombre": "Algo"}  # sin nregistro
+        mock_ficha = AsyncMock()
+
+        with patch.object(main_module, "fetch_cima_data", new=AsyncMock(return_value=meta)), \
+             patch.object(main_module, "fetch_cima_ficha", new=mock_ficha):
+            result_meta, result_ficha = await _fetch_cima_full("algo")
+
+        mock_ficha.assert_not_called()
+        assert result_ficha == {}
+
+    @pytest.mark.asyncio
+    async def test_fetch_cima_full_none_returns_empty(self):
+        """Si cima_data devuelve None, devuelve (None, {})."""
+        with patch.object(main_module, "fetch_cima_data", new=AsyncMock(return_value=None)):
+            result_meta, result_ficha = await _fetch_cima_full("desconocido")
+
+        assert result_meta is None
+        assert result_ficha == {}
+
+    def test_es_search_uses_cima_full(self):
+        """En modo ES, el endpoint usa _fetch_cima_full (CIMA completo en paralelo)."""
+        meta = {"nregistro": "67939", "vtm": "ibuprofeno"}
+        ficha = {"indicaciones": "Para el dolor.", "posologia": "400mg cada 8h.",
+                 "contraindicaciones": "Hipersensibilidad.", "reacciones_adversas": "Náuseas."}
+
+        mock_cima_full = AsyncMock(return_value=(meta, ficha))
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)), \
+             patch.object(main_module, "_fetch_cima_full", new=mock_cima_full), \
+             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+            resp = client.get("/api/drugs/search?query=ibuprofeno&lang=es")
+
+        assert resp.status_code == 200
+        mock_cima_full.assert_called_once()
+        drug = resp.json()["drug"]
+        assert "dolor" in drug["uses"].lower()

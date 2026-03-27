@@ -60,6 +60,106 @@ def translate_text(text: str, lang: str) -> str:
         return text
 
 
+# ── OPTIMIZACIÓN 1: caché en memoria ──────────────────────────────────────────
+# Clave: "{query_lower}_{lang}" → {"data": <resultado completo>, "hits": int}
+# El contador NO se reinicia al refrescar; refresco cada _CACHE_REFRESH_EVERY hits.
+_DRUG_CACHE: dict = {}
+_CACHE_REFRESH_EVERY: int = 12
+
+
+def _cache_get(key: str):
+    """Incrementa el contador y devuelve los datos cacheados, o None si hay que refrescar."""
+    entry = _DRUG_CACHE.get(key)
+    if entry is None:
+        return None
+    entry["hits"] += 1
+    if entry["hits"] % _CACHE_REFRESH_EVERY == 0:
+        return None          # toca refrescar; el contador sigue subiendo
+    return entry["data"]
+
+
+def _cache_set(key: str, data: dict) -> None:
+    """Guarda o actualiza el caché sin reiniciar el contador."""
+    if key in _DRUG_CACHE:
+        _DRUG_CACHE[key]["data"] = data
+    else:
+        _DRUG_CACHE[key] = {"data": data, "hits": 1}
+
+
+# ── OPTIMIZACIÓN 3: CIMA completo en paralelo con OpenFDA ─────────────────────
+async def _fetch_cima_full(query: str):
+    """
+    Ejecuta fetch_cima_data y fetch_cima_ficha en secuencia dentro de esta
+    corutina, para que el caller pueda lanzarla en paralelo con fetch_openfda_raw.
+    Devuelve (cima_meta, ficha).
+    """
+    meta = await fetch_cima_data(query)
+    if not meta or not meta.get("nregistro"):
+        return meta, {}
+    ficha = await fetch_cima_ficha(meta["nregistro"])
+    return meta, ficha
+
+
+# ── OPTIMIZACIÓN 2: traducciones en paralelo ──────────────────────────────────
+# Envía todos los textos a traducir en una sola llamada a Google Translate,
+# separados por un marcador numérico que el traductor no toca.
+_TRANS_SEP = " [[[|||]]] "
+
+
+async def _translate_fields_parallel(drug: dict, lang: str) -> None:
+    """
+    Traduce uses, dosage, restrictions, notFor y sideEffects usando DOS
+    requests paralelos a Google Translate para reducir la latencia total.
+    - Batch A: uses + dosage + restrictions
+    - Batch B: notFor + sideEffects
+    Modifica `drug` in-place. Solo actúa si _lt_ready y lang no es en/es.
+    """
+    if not _lt_ready or lang in ("en", "es"):
+        return
+
+    r_list = list(drug.get("restrictions", []))
+    n_list = list(drug.get("notFor", []))
+    s_list = list(drug.get("sideEffects", []))
+
+    # Batch A: campos principales (uses, dosage, restrictions)
+    texts_a = [drug.get("uses", ""), drug.get("dosage", "")] + r_list
+    # Batch B: campos secundarios (notFor, sideEffects)
+    texts_b = n_list + s_list
+
+    ne_a = [(i, t) for i, t in enumerate(texts_a) if t and t.strip()]
+    ne_b = [(i, t) for i, t in enumerate(texts_b) if t and t.strip()]
+
+    if not ne_a and not ne_b:
+        return
+
+    async def _do_batch(ne, texts, tgt):
+        if not ne:
+            return
+        combined = _TRANS_SEP.join(t for _, t in ne)
+        try:
+            result = await asyncio.to_thread(
+                GoogleTranslator(source="en", target=tgt).translate, combined
+            )
+            parts = [p.strip() for p in result.split("[[[|||]]]")]
+            for li, (orig_idx, _) in enumerate(ne):
+                if li < len(parts):
+                    texts[orig_idx] = parts[li]
+        except Exception:
+            pass  # texto original intacto
+
+    # Ambos batches corren en paralelo
+    await asyncio.gather(
+        _do_batch(ne_a, texts_a, lang),
+        _do_batch(ne_b, texts_b, lang),
+    )
+
+    drug["uses"]         = texts_a[0]
+    drug["dosage"]       = texts_a[1]
+    drug["restrictions"] = texts_a[2 : 2 + len(r_list)]
+    drug["notFor"]       = texts_b[: len(n_list)]
+    drug["sideEffects"]  = texts_b[len(n_list) :]
+
+
 @app.on_event("startup")
 async def startup_event():
     _init_libretranslate()
@@ -2422,17 +2522,29 @@ async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("
     """
     Busca un medicamento y devuelve su ficha estructurada.
     - lang=es: CIMA (AEMPS) como fuente primaria; OpenFDA para compat.
-    - lang=fr/it/de: OpenFDA + deep-translator al idioma correspondiente.
+    - lang=fr/it/de/pt/ca/no/ro: OpenFDA + deep-translator al idioma correspondiente.
     - lang=en: sólo OpenFDA, sin traducción.
     """
+    # ── OPTIMIZACIÓN 1: caché ─────────────────────────────────────────────────
+    # Se cachea todo EXCEPTO el funFact de Gemini (siempre se recalcula).
+    _ck = f"{query.lower().strip()}_{lang}"
+    cached = _cache_get(_ck)
+    if cached is not None:
+        drug_cached = {**cached["drug"]}
+        drug_cached = await enrich_drug_data(drug_cached, lang)
+        return {"found": cached["found"], "drug": drug_cached}
+    # ─────────────────────────────────────────────────────────────────────────
+
     if lang == "es":
-        raw, cima_meta = await asyncio.gather(
+        # ── OPTIMIZACIÓN 3: OpenFDA + CIMA completo en paralelo ───────────────
+        raw, (cima_meta, ficha_pre) = await asyncio.gather(
             fetch_openfda_raw(query),
-            fetch_cima_data(query),
+            _fetch_cima_full(query),
         )
     else:
         raw = await fetch_openfda_raw(query)
         cima_meta = None
+        ficha_pre = {}
 
     if not raw and not cima_meta:
         return {"found": False, "drug": None}
@@ -2483,35 +2595,66 @@ async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("
         drug["class"] = translate_class(drug["class"], lang)
 
         # ── 3. Contenido clínico ───────────────────────────────────────────────
-        ficha: dict = {}
-        if lang == "es" and cima_meta and cima_meta.get("nregistro"):
-            ficha = await fetch_cima_ficha(cima_meta["nregistro"])
+        # ficha_pre ya fue obtenida en paralelo con OpenFDA (OPTIMIZACIÓN 3)
+        ficha: dict = ficha_pre
 
         if ficha.get("indicaciones"):
             drug["uses"] = ficha["indicaciones"]
-        elif _lt_ready and drug.get("uses"):
-            drug["uses"] = translate_text(drug["uses"], lang)
-
         if ficha.get("posologia"):
             for _line in ficha["posologia"].split('\n'):
                 _line = _line.strip()
                 if _line and not re.match(r'^\d+\.\d+\.', _line):
                     drug["dosage"] = _line[:250]
                     break
-        elif _lt_ready and drug.get("dosage"):
-            drug["dosage"] = translate_text(drug["dosage"], lang)
-
         if ficha.get("contraindicaciones"):
             drug["restrictions"] = _split_to_list(ficha["contraindicaciones"], 6)
             drug["notFor"] = drug["restrictions"][:3]
-        elif _lt_ready:
-            drug["restrictions"] = [translate_text(e, lang) for e in drug.get("restrictions", [])]
-            drug["notFor"]       = [translate_text(e, lang) for e in drug.get("notFor", [])]
-
         if ficha.get("reacciones_adversas"):
             drug["sideEffects"] = _split_to_list(ficha["reacciones_adversas"], 8)
-        elif _lt_ready:
-            drug["sideEffects"] = [translate_text(e, lang) for e in drug.get("sideEffects", [])]
+
+        # ── OPTIMIZACIÓN 2: traducciones en batch ─────────────────────────────
+        if _lt_ready and lang not in ("en", "es"):
+            # Idiomas no-ES: un solo request a Google Translate para todos los campos
+            await _translate_fields_parallel(drug, lang)
+        elif _lt_ready and lang == "es":
+            # ES: batch solo para campos no cubiertos por CIMA
+            _need_uses   = not ficha.get("indicaciones") and bool(drug.get("uses"))
+            _need_dosage = not ficha.get("posologia")    and bool(drug.get("dosage"))
+            _need_restr  = not ficha.get("contraindicaciones")
+            _need_se     = not ficha.get("reacciones_adversas")
+
+            r_list = drug.get("restrictions", []) if _need_restr else []
+            n_list = drug.get("notFor", [])       if _need_restr else []
+            s_list = drug.get("sideEffects", [])  if _need_se    else []
+
+            all_texts = (
+                [drug.get("uses", "") if _need_uses else "",
+                 drug.get("dosage", "") if _need_dosage else ""]
+                + list(r_list) + list(n_list) + list(s_list)
+            )
+            non_empty = [(i, t) for i, t in enumerate(all_texts) if t and t.strip()]
+            if non_empty:
+                combined = _TRANS_SEP.join(t for _, t in non_empty)
+                try:
+                    translated = await asyncio.to_thread(
+                        GoogleTranslator(source="en", target="es").translate, combined
+                    )
+                    parts = [p.strip() for p in translated.split("[[[|||]]]")]
+                    for li, (orig_idx, _) in enumerate(non_empty):
+                        if li < len(parts):
+                            all_texts[orig_idx] = parts[li]
+                except Exception:
+                    pass
+
+                if _need_uses:   drug["uses"]   = all_texts[0]
+                if _need_dosage: drug["dosage"] = all_texts[1]
+                offset = 2
+                if _need_restr:
+                    drug["restrictions"] = all_texts[offset:offset+len(r_list)]; offset += len(r_list)
+                    drug["notFor"]       = all_texts[offset:offset+len(n_list)]; offset += len(n_list)
+                if _need_se:
+                    drug["sideEffects"]  = all_texts[offset:offset+len(s_list)]
+        # ─────────────────────────────────────────────────────────────────────
 
         # ── 4. Fuente CIMA si fue usada ────────────────────────────────────────
         if cima_meta and cima_meta.get("nregistro"):
@@ -2524,7 +2667,11 @@ async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("
     # ── 5. funFact vía Gemini ─────────────────────────────────────────────────
     drug = await enrich_drug_data(drug, lang)
 
-    return {"found": True, "drug": drug}
+    result = {"found": True, "drug": drug}
+    # ── OPTIMIZACIÓN 1: guardar en caché ──────────────────────────────────────
+    _cache_set(_ck, result)
+    # ─────────────────────────────────────────────────────────────────────────
+    return result
 
 
 @app.post("/api/drugs/compatibility")
