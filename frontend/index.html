@@ -19,17 +19,25 @@
   <div class="header-actions">
     <button id="theme-btn" class="theme-btn" title="Cambiar tema" aria-label="Toggle theme">☀️</button>
     <div class="lang-selector" id="lang-selector">
-      <button class="lang-globe-btn" id="lang-globe-btn" title="Language / Idioma" aria-label="Select language">🌐</button>
+      <button class="lang-globe-btn" id="lang-globe-btn" title="Language / Idioma" aria-label="Select language">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <ellipse cx="12" cy="12" rx="4.5" ry="10"/>
+          <line x1="2"    y1="12" x2="22"   y2="12"/>
+          <line x1="3.34" y1="7"  x2="20.66" y2="7"/>
+          <line x1="3.34" y1="17" x2="20.66" y2="17"/>
+        </svg>
+      </button>
       <div class="lang-dropdown" id="lang-dropdown">
-        <button class="lang-option" data-lang="es">🇪🇸 Español</button>
-        <button class="lang-option" data-lang="ca">🏴 Català</button>
-        <button class="lang-option" data-lang="pt">🇵🇹 Português</button>
-        <button class="lang-option" data-lang="en">🇬🇧 English</button>
-        <button class="lang-option" data-lang="fr">🇫🇷 Français</button>
-        <button class="lang-option" data-lang="it">🇮🇹 Italiano</button>
-        <button class="lang-option" data-lang="de">🇩🇪 Deutsch</button>
-        <button class="lang-option" data-lang="no">🇳🇴 Norsk</button>
-        <button class="lang-option" data-lang="ro">🇷🇴 Română</button>
+        <button class="lang-option" data-lang="es"><img class="lang-flag" src="https://flagcdn.com/20x15/es.png" alt=""> Español</button>
+        <button class="lang-option" data-lang="ca"><img class="lang-flag" src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Flag_of_Catalonia.svg/20px-Flag_of_Catalonia.svg.png" alt=""> Català</button>
+        <button class="lang-option" data-lang="pt"><img class="lang-flag" src="https://flagcdn.com/20x15/pt.png" alt=""> Português</button>
+        <button class="lang-option" data-lang="en"><img class="lang-flag" src="https://flagcdn.com/20x15/gb.png" alt=""> English</button>
+        <button class="lang-option" data-lang="fr"><img class="lang-flag" src="https://flagcdn.com/20x15/fr.png" alt=""> Français</button>
+        <button class="lang-option" data-lang="it"><img class="lang-flag" src="https://flagcdn.com/20x15/it.png" alt=""> Italiano</button>
+        <button class="lang-option" data-lang="de"><img class="lang-flag" src="https://flagcdn.com/20x15/de.png" alt=""> Deutsch</button>
+        <button class="lang-option" data-lang="no"><img class="lang-flag" src="https://flagcdn.com/20x15/no.png" alt=""> Norsk</button>
+        <button class="lang-option" data-lang="ro"><img class="lang-flag" src="https://flagcdn.com/20x15/ro.png" alt=""> Română</button>
       </div>
     </div>
   </div>
