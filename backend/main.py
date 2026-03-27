@@ -64,7 +64,7 @@ def translate_text(text: str, lang: str) -> str:
 # Clave: "{query_lower}_{lang}" → {"data": <resultado completo>, "hits": int}
 # El contador NO se reinicia al refrescar; refresco cada _CACHE_REFRESH_EVERY hits.
 _DRUG_CACHE: dict = {}
-_CACHE_REFRESH_EVERY: int = 12
+_CACHE_REFRESH_EVERY: int = 25
 
 
 def _cache_get(key: str):
