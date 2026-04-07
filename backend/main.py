@@ -180,7 +180,7 @@ app.add_middleware(
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 CIMA_SEARCH_URL = "https://cima.aemps.es/cima/rest/medicamentos"
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
@@ -2827,86 +2827,23 @@ Symptoms / reason for consultation:
 
 {lang_instruction}"""
 
-    # Schema JSON que Gemini debe respetar estrictamente
-    response_schema = {
-        "type":
-        "object",
-        "properties": {
-            "verdict": {
-                "type": "string",
-                "enum": ["suitable", "risky", "not-recommended", "uncertain"],
-                "description": "Veredicto global de compatibilidad"
-            },
-            "resumen": {
-                "type":
-                "string",
-                "description":
-                "Frase corta que resume la evaluación (máx 120 caracteres)"
-            },
-            "indicado_para": {
-                "type":
-                "string",
-                "description":
-                "Si el medicamento es adecuado para los síntomas descritos (1-2 frases)"
-            },
-            "factores_riesgo": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "factor": {
-                            "type": "string",
-                            "description": "Nombre del factor de riesgo"
-                        },
-                        "nivel": {
-                            "type": "string",
-                            "enum": ["alto", "medio", "bajo"]
-                        },
-                        "explicacion": {
-                            "type": "string",
-                            "description": "Explicación clínica breve"
-                        }
-                    },
-                    "required": ["factor", "nivel", "explicacion"]
-                }
-            },
-            "explicacion_general": {
-                "type": "string",
-                "description": "Evaluación clínica global en 2-3 frases"
-            },
-            "recomendaciones": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                },
-                "description": "Lista de recomendaciones para el paciente"
-            },
-            "alternativas": {
-                "type":
-                "array",
-                "items": {
-                    "type": "string"
-                },
-                "description":
-                "Medicamentos alternativos si el veredicto es risky o not-recommended"
-            },
-            "advertencia_critica": {
-                "type":
-                "string",
-                "description":
-                "Contraindicación absoluta crítica si existe, cadena vacía si no hay"
-            }
-        },
-        "required": [
-            "verdict", "resumen", "indicado_para", "factores_riesgo",
-            "explicacion_general", "recomendaciones", "alternativas",
-            "advertencia_critica"
-        ]
-    }
+    prompt += """
 
-    # 3. Llamar a Gemini con JSON Schema nativo
+Respond ONLY with a JSON object with these exact fields:
+{
+  "verdict": "suitable"|"risky"|"not-recommended"|"uncertain",
+  "resumen": "short summary (max 120 chars)",
+  "indicado_para": "1-2 sentences on suitability for the condition",
+  "factores_riesgo": [{"factor": "...", "nivel": "alto"|"medio"|"bajo", "explicacion": "..."}],
+  "explicacion_general": "2-3 sentence clinical evaluation",
+  "recomendaciones": ["...", "..."],
+  "alternativas": ["drug1", "drug2"],
+  "advertencia_critica": "critical contraindication or empty string"
+}"""
+
+    # 3. Llamar a Gemini
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(GEMINI_URL,
                                      headers={
                                          "X-goog-api-key": GEMINI_KEY,
@@ -2921,10 +2858,7 @@ Symptoms / reason for consultation:
                                          "generationConfig": {
                                              "temperature": 0.2,
                                              "maxOutputTokens": 2000,
-                                             "responseMimeType":
-                                             "application/json",
-                                             "responseJsonSchema":
-                                             response_schema
+                                             "responseMimeType": "application/json",
                                          }
                                      })
     except Exception as e:
