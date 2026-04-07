@@ -2806,11 +2806,13 @@ Información oficial del medicamento (fuente: OpenFDA / FDA):
         drug_context = f"Medicamento: {req.drug_name} (no encontrado en OpenFDA, usar conocimiento general)."
 
     # 2. Construir el prompt para Gemini
-    lang_instruction = (
-        "Analiza y responde COMPLETAMENTE EN ESPAÑOL."
-        if req.lang == "es" else
-        "Analyze and respond COMPLETELY IN ENGLISH."
-    )
+    _lang_names = {
+        "es": "SPANISH",   "ca": "CATALAN",  "pt": "PORTUGUESE",
+        "en": "ENGLISH",   "fr": "FRENCH",   "it": "ITALIAN",
+        "de": "GERMAN",    "no": "NORWEGIAN","ro": "ROMANIAN",
+    }
+    _lang_display = _lang_names.get(req.lang, "ENGLISH")
+    lang_instruction = f"Analyze and respond COMPLETELY IN {_lang_display}. All text fields must be in {_lang_display}."
 
     prompt = f"""You are an expert clinical pharmaceutical analysis system.
 Analyze the compatibility of the following medication with the patient profile and generate a detailed medical report.
