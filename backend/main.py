@@ -180,7 +180,8 @@ app.add_middleware(
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 CIMA_SEARCH_URL = "https://cima.aemps.es/cima/rest/medicamentos"
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_LITE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
@@ -1784,9 +1785,9 @@ async def enrich_drug_data(med: dict, lang: str) -> dict:
         )
 
     try:
-        async with httpx.AsyncClient(timeout=25) as client:
+        async with httpx.AsyncClient(timeout=8) as client:
             resp = await client.post(
-                GEMINI_URL,
+                GEMINI_LITE_URL,
                 headers={"X-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
@@ -2537,7 +2538,6 @@ async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("
     cached = _cache_get(_ck)
     if cached is not None:
         drug_cached = {**cached["drug"]}
-        drug_cached = await enrich_drug_data(drug_cached, lang)
         return {"found": cached["found"], "drug": drug_cached}
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -2670,8 +2670,7 @@ async def search_drug(query: str = Query(..., min_length=1), lang: str = Query("
                 "url":   f"https://cima.aemps.es/cima/publico/detalle.html?nregistro={nreg}"
             }] + drug.get("sources", [])
 
-    # ── 5. funFact vía Gemini ─────────────────────────────────────────────────
-    drug = await enrich_drug_data(drug, lang)
+    # funFact vía Gemini eliminado — añadía latencia sin beneficio crítico
 
     result = {"found": True, "drug": drug}
     # ── OPTIMIZACIÓN 1: guardar en caché ──────────────────────────────────────
