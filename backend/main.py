@@ -180,8 +180,8 @@ app.add_middleware(
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 CIMA_SEARCH_URL = "https://cima.aemps.es/cima/rest/medicamentos"
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-GEMINI_LITE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
+GEMINI_URL      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_LITE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
@@ -1869,7 +1869,7 @@ async def fetch_cima_ficha(nregistro: str) -> dict:
     """
     url = (f"https://cima.aemps.es/cima/dochtml/ft/{nregistro}"
            f"/FT_{nregistro}.html")
-    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=6.0, follow_redirects=True) as client:
         try:
             resp = await client.get(url)
             if resp.status_code != 200:
@@ -1943,20 +1943,22 @@ async def fetch_openfda_raw(query: str) -> Optional[dict]:
             f'openfda.substance_name:"{term}"',
         ]
 
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        for search in searches:
-            try:
-                resp = await client.get(OPENFDA_URL,
-                                        params={
-                                            "search": search,
-                                            "limit": 1
-                                        })
+    async def _try_search(search: str) -> Optional[dict]:
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                resp = await client.get(OPENFDA_URL, params={"search": search, "limit": 1})
                 if resp.status_code == 200:
                     results = resp.json().get("results", [])
                     if results:
                         return results[0]
-            except Exception:
-                continue
+        except Exception:
+            pass
+        return None
+
+    results = await asyncio.gather(*[_try_search(s) for s in searches])
+    for r in results:
+        if r:
+            return r
     return None
 
 
