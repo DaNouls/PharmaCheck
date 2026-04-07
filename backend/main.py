@@ -180,8 +180,8 @@ app.add_middleware(
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 CIMA_SEARCH_URL = "https://cima.aemps.es/cima/rest/medicamentos"
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-GEMINI_LITE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL      = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_LITE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
 # Nombres europeos/españoles → nombre FDA (inglés)
 NAME_TRANSLATIONS = {
@@ -2844,7 +2844,7 @@ Respond ONLY with a JSON object with these exact fields:
 
     # 3. Llamar a Gemini
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
+        async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.post(GEMINI_URL,
                                      headers={
                                          "X-goog-api-key": GEMINI_KEY,
