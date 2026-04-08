@@ -12,13 +12,21 @@ import asyncio
 import httpx
 from difflib import get_close_matches
 from typing import Optional, List
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from pydantic import BaseModel
 
-app = FastAPI(title="PharmaCheck API", version="2.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _init_libretranslate()
+    yield
+
+
+app = FastAPI(title="PharmaCheck API", version="2.0.0", lifespan=lifespan)
 
 # ─────────────────────────────────────────
 # TRADUCCIÓN — deep-translator (Google Translate, sin API key)
@@ -166,9 +174,6 @@ async def _translate_fields_parallel(drug: dict, lang: str) -> None:
     drug["sideEffects"]  = texts_b[len(n_list) :]
 
 
-@app.on_event("startup")
-async def startup_event():
-    _init_libretranslate()
 
 app.add_middleware(
     CORSMiddleware,
