@@ -87,7 +87,9 @@ const i18n = {
     consult_leaflet:  'Consultar el prospecto oficial para información completa.',
     gemini_no_risks:  'No se identificaron factores de riesgo específicos para este paciente.',
     gemini_def_recs:  'Seguir las indicaciones del prospecto oficial.',
-    gemini_err_title: 'Error de Gemini',
+    gemini_err_title:    'Error de Gemini',
+    gemini_overloaded:   '⚠️ Error 503: Gemini está sobrecargado, inténtalo en otro momento.',
+    gemini_retrying:     '🔄 Gemini tardando, reintentando…',
     risk_alto:        'ALTO',
     risk_medio:       'MEDIO',
     risk_bajo:        'BAJO',
@@ -154,7 +156,9 @@ const i18n = {
     consult_leaflet:  'Consult the official leaflet for complete information.',
     gemini_no_risks:  'No specific risk factors identified for this patient.',
     gemini_def_recs:  'Follow the instructions in the official leaflet.',
-    gemini_err_title: 'Gemini Error',
+    gemini_err_title:  'Gemini Error',
+    gemini_overloaded: '⚠️ Error 503: Gemini is overloaded, please try again later.',
+    gemini_retrying:   '🔄 Gemini taking long, retrying…',
     risk_alto:        'HIGH',
     risk_medio:       'MEDIUM',
     risk_bajo:        'LOW',
@@ -221,7 +225,9 @@ const i18n = {
     consult_leaflet:  'Consulter la notice officielle pour des informations complètes.',
     gemini_no_risks:  'Aucun facteur de risque spécifique identifié pour ce patient.',
     gemini_def_recs:  'Suivre les instructions de la notice officielle.',
-    gemini_err_title: 'Erreur Gemini',
+    gemini_err_title:  'Erreur Gemini',
+    gemini_overloaded: '⚠️ Erreur 503 : Gemini est surchargé, veuillez réessayer plus tard.',
+    gemini_retrying:   '🔄 Gemini tarde, nouvelle tentative…',
     risk_alto:        'ÉLEVÉ',
     risk_medio:       'MOYEN',
     risk_bajo:        'FAIBLE',
@@ -288,7 +294,9 @@ const i18n = {
     consult_leaflet:  'Consultare il foglietto illustrativo ufficiale per informazioni complete.',
     gemini_no_risks:  'Nessun fattore di rischio specifico identificato per questo paziente.',
     gemini_def_recs:  'Seguire le istruzioni del foglietto illustrativo ufficiale.',
-    gemini_err_title: 'Errore Gemini',
+    gemini_err_title:  'Errore Gemini',
+    gemini_overloaded: '⚠️ Errore 503: Gemini è sovraccarico, riprova più tardi.',
+    gemini_retrying:   '🔄 Gemini impiega tempo, nuovo tentativo…',
     risk_alto:        'ALTO',
     risk_medio:       'MEDIO',
     risk_bajo:        'BASSO',
@@ -355,7 +363,9 @@ const i18n = {
     consult_leaflet:  'Beipackzettel für vollständige Informationen konsultieren.',
     gemini_no_risks:  'Keine spezifischen Risikofaktoren für diesen Patienten identifiziert.',
     gemini_def_recs:  'Anweisungen im offiziellen Beipackzettel befolgen.',
-    gemini_err_title: 'Gemini-Fehler',
+    gemini_err_title:  'Gemini-Fehler',
+    gemini_overloaded: '⚠️ Fehler 503: Gemini ist überlastet, bitte später erneut versuchen.',
+    gemini_retrying:   '🔄 Gemini braucht lange, erneuter Versuch…',
     risk_alto:        'HOCH',
     risk_medio:       'MITTEL',
     risk_bajo:        'NIEDRIG',
@@ -422,7 +432,9 @@ const i18n = {
     consult_leaflet:  'Consultar el prospecte oficial per a informació completa.',
     gemini_no_risks:  'No s\'han identificat factors de risc específics per a aquest pacient.',
     gemini_def_recs:  'Seguir les indicacions del prospecte oficial.',
-    gemini_err_title: 'Error de Gemini',
+    gemini_err_title:  'Error de Gemini',
+    gemini_overloaded: '⚠️ Error 503: Gemini està sobrecarregat, torna-ho a intentar més tard.',
+    gemini_retrying:   '🔄 Gemini tarda, reintentant…',
     risk_alto:        'ALT',
     risk_medio:       'MITJÀ',
     risk_bajo:        'BAIX',
@@ -489,7 +501,9 @@ const i18n = {
     consult_leaflet:  'Consultar o folheto oficial para informação completa.',
     gemini_no_risks:  'Não foram identificados fatores de risco específicos para este paciente.',
     gemini_def_recs:  'Seguir as indicações do folheto oficial.',
-    gemini_err_title: 'Erro Gemini',
+    gemini_err_title:  'Erro Gemini',
+    gemini_overloaded: '⚠️ Erro 503: Gemini está sobrecarregado, tente novamente mais tarde.',
+    gemini_retrying:   '🔄 Gemini a demorar, a tentar novamente…',
     risk_alto:        'ALTO',
     risk_medio:       'MÉDIO',
     risk_bajo:        'BAIXO',
@@ -556,7 +570,9 @@ const i18n = {
     consult_leaflet:  'Se pakningsvedlegget for fullstendig informasjon.',
     gemini_no_risks:  'Ingen spesifikke risikofaktorer identifisert for denne pasienten.',
     gemini_def_recs:  'Følg anvisningene i pakningsvedlegget.',
-    gemini_err_title: 'Gemini-feil',
+    gemini_err_title:  'Gemini-feil',
+    gemini_overloaded: '⚠️ Feil 503: Gemini er overbelastet, prøv igjen senere.',
+    gemini_retrying:   '🔄 Gemini tar lang tid, prøver på nytt…',
     risk_alto:        'HØY',
     risk_medio:       'MIDDELS',
     risk_bajo:        'LAV',
@@ -623,7 +639,9 @@ const i18n = {
     consult_leaflet:  'Consultați prospectul oficial pentru informații complete.',
     gemini_no_risks:  'Nu au fost identificați factori de risc specifici pentru acest pacient.',
     gemini_def_recs:  'Urmați instrucțiunile din prospectul oficial.',
-    gemini_err_title: 'Eroare Gemini',
+    gemini_err_title:  'Eroare Gemini',
+    gemini_overloaded: '⚠️ Eroare 503: Gemini este supraîncărcat, încercați mai târziu.',
+    gemini_retrying:   '🔄 Gemini întârzie, se reîncearcă…',
     risk_alto:        'RIDICAT',
     risk_medio:       'MEDIU',
     risk_bajo:        'SCĂZUT',
@@ -882,9 +900,10 @@ function renderUnknownMedSheet(medName, externalData = null) {
 
 function renderGeminiReport(data) {
   if (data.error) {
+    const msg = data.error === 'gemini_overloaded' ? t('gemini_overloaded') : data.error;
     return `<div class="compat-card">
       <div class="compat-header">
-        <div class="compat-header-left"><h2>${t('gemini_err_title')}</h2><p>${data.error}</p></div>
+        <div class="compat-header-left"><h2>${t('gemini_err_title')}</h2><p>${msg}</p></div>
       </div>
       <div class="card-footer"><button class="btn-secondary" onclick="resetToMain(true)">${t('btn_back_compat')}</button></div>
     </div>`;
@@ -1131,6 +1150,14 @@ async function handleAction() {
   resultSection.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><p>${loadingMsg}</p></div>`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  let retryNotifTimer = null;
+  if (compatMode) {
+    retryNotifTimer = setTimeout(() => {
+      const notif = document.getElementById('retry-notif');
+      if (notif) { notif.textContent = t('gemini_retrying'); notif.classList.add('visible'); }
+    }, 20000);
+  }
+
   try {
     let html;
 
@@ -1154,8 +1181,14 @@ async function handleAction() {
       }
     }
 
+    clearTimeout(retryNotifTimer);
+    const notif = document.getElementById('retry-notif');
+    if (notif) notif.classList.remove('visible');
     resultSection.innerHTML = html;
   } catch (err) {
+    clearTimeout(retryNotifTimer);
+    const notif = document.getElementById('retry-notif');
+    if (notif) notif.classList.remove('visible');
     resultSection.innerHTML = '';
     document.getElementById('initial-screen').style.display = '';
     apiBanner.textContent = t('err_server');

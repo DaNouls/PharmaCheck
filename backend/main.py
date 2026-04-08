@@ -2842,28 +2842,32 @@ Respond ONLY with a JSON object with these exact fields:
   "advertencia_critica": "critical contraindication or empty string"
 }"""
 
-    # 3. Llamar a Gemini
-    try:
-        async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(GEMINI_URL,
-                                     headers={
-                                         "X-goog-api-key": GEMINI_KEY,
-                                         "Content-Type": "application/json"
-                                     },
-                                     json={
-                                         "contents": [{
-                                             "parts": [{
-                                                 "text": prompt
-                                             }]
-                                         }],
-                                         "generationConfig": {
-                                             "temperature": 0.2,
-                                             "maxOutputTokens": 2000,
-                                             "responseMimeType": "application/json",
-                                         }
-                                     })
-    except Exception as e:
-        return {"error": f"{type(e).__name__}: {e!r}"}
+    # 3. Llamar a Gemini (hasta 3 intentos si hay 503)
+    _payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 2000,
+            "responseMimeType": "application/json",
+        }
+    }
+    _headers = {"X-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"}
+    resp = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(GEMINI_URL, headers=_headers, json=_payload)
+        except Exception as e:
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            return {"error": f"{type(e).__name__}: {e!r}"}
+        if resp.status_code == 503:
+            if attempt < 2:
+                await asyncio.sleep(2)
+                continue
+            return {"error": "gemini_overloaded"}
+        break
 
     if resp.status_code != 200:
         return {
@@ -2872,8 +2876,7 @@ Respond ONLY with a JSON object with these exact fields:
         }
 
     try:
-        gemini_text = resp.json(
-        )["candidates"][0]["content"]["parts"][0]["text"]
+        gemini_text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
         report = json.loads(gemini_text)
     except (KeyError, IndexError, json.JSONDecodeError) as e:
         return {
