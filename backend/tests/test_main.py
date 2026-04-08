@@ -445,8 +445,7 @@ class TestApiEndpoints:
 
     def test_search_found(self):
         """Medicamento encontrado devuelve found=True con estructura esperada."""
-        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)), \
-             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)):
             resp = client.get("/api/drugs/search?query=ibuprofen&lang=en")
         assert resp.status_code == 200
         data = resp.json()
@@ -459,7 +458,7 @@ class TestApiEndpoints:
         raw_with_ibuprofen = dict(SAMPLE_RAW)
         raw_with_ibuprofen["openfda"] = {**SAMPLE_RAW["openfda"], "generic_name": ["ibuprofen"]}
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=raw_with_ibuprofen)), \
-             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+             patch.object(main_module, "_fetch_cima_full", new=AsyncMock(return_value=(None, {}))):
             resp = client.get("/api/drugs/search?query=ibuprofeno&lang=es")
         assert resp.status_code == 200
         assert resp.json()["drug"]["name"] == "Ibuprofeno"
@@ -551,8 +550,7 @@ class TestDrugCache:
     def test_search_endpoint_caches_result(self):
         """El endpoint /search guarda el resultado en caché."""
         main_module._DRUG_CACHE.clear()
-        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)), \
-             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)):
             client.get("/api/drugs/search?query=ibuprofen&lang=en")
         assert "ibuprofen_en" in main_module._DRUG_CACHE
 
@@ -560,8 +558,7 @@ class TestDrugCache:
         """En cache hit, fetch_openfda_raw NO se vuelve a llamar."""
         main_module._DRUG_CACHE.clear()
         mock_fetch = AsyncMock(return_value=SAMPLE_RAW)
-        with patch.object(main_module, "fetch_openfda_raw", new=mock_fetch), \
-             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+        with patch.object(main_module, "fetch_openfda_raw", new=mock_fetch):
             client.get("/api/drugs/search?query=ibuprofen&lang=en")  # primera: llena caché
             client.get("/api/drugs/search?query=ibuprofen&lang=en")  # segunda: usa caché
         assert mock_fetch.call_count == 1  # solo una llamada real a OpenFDA
@@ -702,8 +699,7 @@ class TestCimaParallel:
 
         mock_cima_full = AsyncMock(return_value=(meta, ficha))
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=SAMPLE_RAW)), \
-             patch.object(main_module, "_fetch_cima_full", new=mock_cima_full), \
-             patch.object(main_module, "enrich_drug_data", new=AsyncMock(side_effect=lambda d, l: d)):
+             patch.object(main_module, "_fetch_cima_full", new=mock_cima_full):
             resp = client.get("/api/drugs/search?query=ibuprofeno&lang=es")
 
         assert resp.status_code == 200
