@@ -1155,7 +1155,7 @@ async function handleAction() {
     retryNotifTimer = setTimeout(() => {
       const notif = document.getElementById('retry-notif');
       if (notif) { notif.textContent = t('gemini_retrying'); notif.classList.add('visible'); }
-    }, 20000);
+    }, 5000);
   }
 
   try {

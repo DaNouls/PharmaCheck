@@ -2859,12 +2859,12 @@ Respond ONLY with a JSON object with these exact fields:
                 resp = await client.post(GEMINI_URL, headers=_headers, json=_payload)
         except Exception as e:
             if attempt < 2:
-                await asyncio.sleep(2)
+                await asyncio.sleep(3.5)
                 continue
             return {"error": f"{type(e).__name__}: {e!r}"}
         if resp.status_code == 503:
             if attempt < 2:
-                await asyncio.sleep(2)
+                await asyncio.sleep(3.5)
                 continue
             return {"error": "gemini_overloaded"}
         break
