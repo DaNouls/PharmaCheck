@@ -13,6 +13,8 @@ import httpx
 from difflib import get_close_matches
 from typing import Optional, List
 from contextlib import asynccontextmanager
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,8 +22,39 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
+# ─────────────────────────────────────────
+# AI USAGE COUNTER (server-side, persistent)
+# ─────────────────────────────────────────
+
+_AI_DAILY_LIMIT = 20
+_MADRID_TZ = ZoneInfo("Europe/Madrid")
+_COUNTER_FILE = Path(__file__).resolve().parent / "data" / "ai_counter.json"
+_counter_lock = asyncio.Lock()
+
+
+def _madrid_today() -> str:
+    return datetime.now(_MADRID_TZ).strftime("%Y-%m-%d")
+
+
+def _load_counter() -> dict:
+    try:
+        data = json.loads(_COUNTER_FILE.read_text())
+        if data.get("date") == _madrid_today():
+            return data
+    except Exception:
+        pass
+    return {"date": _madrid_today(), "used": 0}
+
+
+def _save_counter(data: dict) -> None:
+    _COUNTER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _COUNTER_FILE.write_text(json.dumps(data))
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _COUNTER_FILE.parent.mkdir(parents=True, exist_ok=True)
     _init_libretranslate()
     yield
 
@@ -2847,7 +2880,15 @@ Respond ONLY with a JSON object with these exact fields:
   "advertencia_critica": "critical contraindication or empty string"
 }"""
 
-    # 3. Llamar a Gemini (hasta 3 intentos si hay 503)
+    # 3. Verificar y decrementar contador de IA
+    async with _counter_lock:
+        _cdata = _load_counter()
+        if _cdata["used"] >= _AI_DAILY_LIMIT:
+            return {"error": "ai_limit_reached"}
+        _cdata["used"] += 1
+        _save_counter(_cdata)
+
+    # 4. Llamar a Gemini (hasta 3 intentos si hay 503)
     _payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -2892,6 +2933,15 @@ Respond ONLY with a JSON object with these exact fields:
     report["drug_name"] = drug_name_display
     report["sources"] = med["sources"] if raw else DEFAULT_SOURCES
     return report
+
+@app.get("/api/ai/counter")
+async def get_ai_counter():
+    """Devuelve los usos de IA restantes para hoy (hora Madrid)."""
+    async with _counter_lock:
+        data = _load_counter()
+        remaining = _AI_DAILY_LIMIT - data["used"]
+    return {"remaining": remaining, "limit": _AI_DAILY_LIMIT}
+
 
 @app.get("/api")
 async def root():
