@@ -8,6 +8,7 @@ Run:  python3 -m pytest backend/tests/test_e2e.py -v -m e2e
 import sys
 import os
 import json
+import time
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -20,6 +21,40 @@ from fastapi.testclient import TestClient
 pytestmark = pytest.mark.e2e
 
 client = TestClient(main_module.app)
+
+# ── Helpers compartidos ────────────────────────────────────────────────────────
+
+def _build_gemini_mock(responses):
+    """Construye un mock de httpx.AsyncClient que devuelve las respuestas en orden."""
+    call_count = [0]
+
+    async def fake_post(url, **kwargs):
+        idx = min(call_count[0], len(responses) - 1)
+        call_count[0] += 1
+        status, body = responses[idx]
+        mock_resp = MagicMock()
+        mock_resp.status_code = status
+        mock_resp.text = str(body)
+        if isinstance(body, dict):
+            mock_resp.json.return_value = body
+        return mock_resp
+
+    mock_client = MagicMock()
+    mock_client.post = fake_post
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    return mock_client
+
+
+def _fresh_counter(used=0, recent_calls=None, blocked_until=None):
+    """Devuelve un dict de contador limpio para usar en mocks."""
+    return {
+        "date": main_module._madrid_today(),
+        "used": used,
+        "recent_calls": recent_calls if recent_calls is not None else [],
+        "blocked_until": blocked_until,
+    }
+
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -262,31 +297,12 @@ GEMINI_503 = (503, "Service Unavailable")
 class TestGeminiCompatibilityEndpointE2E:
     """Tests del endpoint /api/drugs/gemini-compatibility. Gemini siempre mockeado."""
 
-    def _build_gemini_mock(self, responses):
-        """Construye un mock de httpx.AsyncClient que devuelve las respuestas en orden."""
-        call_count = [0]
-
-        async def fake_post(url, **kwargs):
-            idx = min(call_count[0], len(responses) - 1)
-            call_count[0] += 1
-            status, body = responses[idx]
-            mock_resp = MagicMock()
-            mock_resp.status_code = status
-            mock_resp.text = str(body)
-            if isinstance(body, dict):
-                mock_resp.json.return_value = body
-            return mock_resp
-
-        mock_client = MagicMock()
-        mock_client.post = fake_post
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        return mock_client
-
     def test_success_returns_report(self):
         """Respuesta 200 de Gemini devuelve el informe estructurado."""
-        mock_client = self._build_gemini_mock([GEMINI_200])
+        mock_client = _build_gemini_mock([GEMINI_200])
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter()), \
+             patch.object(main_module, "_save_counter"), \
              patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
              patch.object(main_module.asyncio, "sleep", new=AsyncMock()):
             resp = client.post("/api/drugs/gemini-compatibility", json={
@@ -303,8 +319,10 @@ class TestGeminiCompatibilityEndpointE2E:
 
     def test_503_all_retries_returns_overloaded(self):
         """3 respuestas 503 seguidas devuelven error 'gemini_overloaded'."""
-        mock_client = self._build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_503])
+        mock_client = _build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_503])
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter()), \
+             patch.object(main_module, "_save_counter"), \
              patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
              patch.object(main_module.asyncio, "sleep", new=AsyncMock()):
             resp = client.post("/api/drugs/gemini-compatibility", json={
@@ -316,8 +334,10 @@ class TestGeminiCompatibilityEndpointE2E:
 
     def test_503_then_success_on_third_attempt(self):
         """Dos 503 seguidos de un 200 devuelven el informe correctamente."""
-        mock_client = self._build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_200])
+        mock_client = _build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_200])
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter()), \
+             patch.object(main_module, "_save_counter"), \
              patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
              patch.object(main_module.asyncio, "sleep", new=AsyncMock()):
             resp = client.post("/api/drugs/gemini-compatibility", json={
@@ -332,8 +352,10 @@ class TestGeminiCompatibilityEndpointE2E:
     def test_retry_pauses_between_attempts(self):
         """asyncio.sleep se llama entre reintentos cuando hay 503."""
         mock_sleep = AsyncMock()
-        mock_client = self._build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_200])
+        mock_client = _build_gemini_mock([GEMINI_503, GEMINI_503, GEMINI_200])
         with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter()), \
+             patch.object(main_module, "_save_counter"), \
              patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
              patch.object(main_module.asyncio, "sleep", new=mock_sleep):
             client.post("/api/drugs/gemini-compatibility", json={
@@ -341,3 +363,136 @@ class TestGeminiCompatibilityEndpointE2E:
             })
 
         assert mock_sleep.call_count == 2  # pausa entre intento 1→2 y 2→3
+
+
+# ── /api/ai/counter ────────────────────────────────────────────────────────────
+
+class TestAiCounterEndpointE2E:
+    """Tests del contador de IA servidor y rate limiting."""
+
+    def test_counter_endpoint_structure(self):
+        """GET /api/ai/counter devuelve las claves esperadas."""
+        with patch.object(main_module, "_load_counter", return_value=_fresh_counter()):
+            resp = client.get("/api/ai/counter")
+        assert resp.status_code == 200
+        data = resp.json()
+        for key in ("remaining", "limit", "rate_limited", "rate_limited_seconds_left"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_counter_endpoint_remaining_reflects_used(self):
+        """remaining = limit - used."""
+        with patch.object(main_module, "_load_counter", return_value=_fresh_counter(used=7)):
+            resp = client.get("/api/ai/counter")
+        data = resp.json()
+        assert data["remaining"] == 13
+        assert data["limit"] == 20
+        assert data["rate_limited"] is False
+
+    def test_counter_endpoint_full_limit(self):
+        """Con used=20, remaining=0 y rate_limited=False."""
+        with patch.object(main_module, "_load_counter", return_value=_fresh_counter(used=20)):
+            resp = client.get("/api/ai/counter")
+        data = resp.json()
+        assert data["remaining"] == 0
+        assert data["rate_limited"] is False
+
+    def test_counter_endpoint_when_rate_limited(self):
+        """Con bloqueo activo, rate_limited=True y secs_left > 0."""
+        state = _fresh_counter(blocked_until=time.time() + 45)
+        with patch.object(main_module, "_load_counter", return_value=state):
+            resp = client.get("/api/ai/counter")
+        data = resp.json()
+        assert data["rate_limited"] is True
+        assert data["rate_limited_seconds_left"] > 0
+        assert data["rate_limited_seconds_left"] <= 46
+
+    def test_counter_endpoint_expired_block_not_rate_limited(self):
+        """Con bloqueo ya expirado, rate_limited=False."""
+        state = _fresh_counter(blocked_until=time.time() - 10)
+        with patch.object(main_module, "_load_counter", return_value=state):
+            resp = client.get("/api/ai/counter")
+        assert resp.json()["rate_limited"] is False
+
+    def test_gemini_returns_ai_limit_reached_when_exhausted(self):
+        """gemini-compatibility retorna ai_limit_reached cuando used >= 20."""
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter(used=20)), \
+             patch.object(main_module, "_save_counter"):
+            resp = client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        assert resp.json()["error"] == "ai_limit_reached"
+
+    def test_gemini_returns_rate_limited_when_blocked(self):
+        """gemini-compatibility retorna rate_limited cuando hay bloqueo activo."""
+        state = _fresh_counter(blocked_until=time.time() + 30)
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=state), \
+             patch.object(main_module, "_save_counter"):
+            resp = client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        data = resp.json()
+        assert data["error"] == "rate_limited"
+        assert "rate_limited_seconds_left" in data
+
+    def test_gemini_decrements_counter_on_success(self):
+        """El contador sube en 1 tras una llamada exitosa a Gemini."""
+        saved = []
+        mock_client = _build_gemini_mock([GEMINI_200])
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", side_effect=lambda: _fresh_counter(used=5)), \
+             patch.object(main_module, "_save_counter", side_effect=lambda d: saved.append(dict(d))), \
+             patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
+             patch.object(main_module.asyncio, "sleep", new=AsyncMock()):
+            resp = client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        assert "error" not in resp.json()
+        assert any(s["used"] == 6 for s in saved)
+
+    def test_counter_not_decremented_when_daily_limit_reached(self):
+        """Cuando se alcanza el límite diario, used no cambia."""
+        saved = []
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=_fresh_counter(used=20)), \
+             patch.object(main_module, "_save_counter", side_effect=lambda d: saved.append(dict(d))):
+            client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        # _save_counter must not have been called with used=21
+        assert all(s.get("used", 0) <= 20 for s in saved)
+
+    def test_rate_limit_triggers_after_more_than_5_requests_in_70s(self):
+        """Con 5 llamadas recientes (<70s), la 6ª dispara el bloqueo."""
+        recent = [time.time() - i for i in range(5, 0, -1)]  # 5 timestamps de hace 1-5s
+        state = _fresh_counter(used=5, recent_calls=recent)
+        saved = []
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", return_value=state), \
+             patch.object(main_module, "_save_counter", side_effect=lambda d: saved.append(dict(d))):
+            resp = client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        assert resp.json()["error"] == "rate_limited"
+        assert saved and saved[-1]["blocked_until"] is not None
+        assert saved[-1]["blocked_until"] > time.time()
+
+    def test_block_expiry_clears_recent_calls(self):
+        """Cuando el bloqueo expira, recent_calls se limpia en la siguiente petición."""
+        expired_ts = time.time() - 5
+        recent = [time.time() - i for i in range(6, 0, -1)]
+        state = _fresh_counter(used=6, recent_calls=recent, blocked_until=expired_ts)
+        saved = []
+        mock_client = _build_gemini_mock([GEMINI_200])
+        with patch.object(main_module, "fetch_openfda_raw", new=AsyncMock(return_value=None)), \
+             patch.object(main_module, "_load_counter", side_effect=lambda: dict(state)), \
+             patch.object(main_module, "_save_counter", side_effect=lambda d: saved.append(dict(d))), \
+             patch.object(main_module.httpx, "AsyncClient", return_value=mock_client), \
+             patch.object(main_module.asyncio, "sleep", new=AsyncMock()):
+            resp = client.post("/api/drugs/gemini-compatibility", json={
+                "drug_name": "ibuprofen", "patient_text": "adulto", "lang": "es"
+            })
+        assert "error" not in resp.json()
+        # El estado guardado no debe tener los timestamps antiguos (solo el nuevo)
+        assert saved and len(saved[-1]["recent_calls"]) == 1

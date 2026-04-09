@@ -13,6 +13,8 @@ import httpx
 from difflib import get_close_matches
 from typing import Optional, List
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,8 +22,40 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
+# ─────────────────────────────────────────
+# AI USAGE COUNTER (server-side, persistent)
+# ─────────────────────────────────────────
+
+_AI_DAILY_LIMIT = 20
+_MADRID_TZ = ZoneInfo("Europe/Madrid")
+_COUNTER_FILE = Path(__file__).resolve().parent / "data" / "ai_counter.json"
+_counter_lock = asyncio.Lock()
+
+
+def _madrid_today() -> str:
+    return datetime.now(_MADRID_TZ).strftime("%Y-%m-%d")
+
+
+def _load_counter() -> dict:
+    default = {"date": _madrid_today(), "used": 0, "recent_calls": [], "blocked_until": None}
+    try:
+        data = json.loads(_COUNTER_FILE.read_text())
+        if data.get("date") == _madrid_today():
+            return {**default, **data}
+    except Exception:
+        pass
+    return default
+
+
+def _save_counter(data: dict) -> None:
+    _COUNTER_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _COUNTER_FILE.write_text(json.dumps(data))
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _COUNTER_FILE.parent.mkdir(parents=True, exist_ok=True)
     _init_libretranslate()
     yield
 
@@ -2847,7 +2881,40 @@ Respond ONLY with a JSON object with these exact fields:
   "advertencia_critica": "critical contraindication or empty string"
 }"""
 
-    # 3. Llamar a Gemini (hasta 3 intentos si hay 503)
+    # 3. Verificar límite diario y rate limit por minuto
+    async with _counter_lock:
+        _cdata = _load_counter()
+        _now_ts = datetime.now(timezone.utc).timestamp()
+
+        # Check rate limit block
+        _blocked_until = _cdata.get("blocked_until")
+        if _blocked_until and _now_ts < _blocked_until:
+            secs_left = int(_blocked_until - _now_ts) + 1
+            return {"error": "rate_limited", "rate_limited_seconds_left": secs_left}
+
+        # Block just expired — clear slate so old timestamps don't re-trigger immediately
+        if _blocked_until and _now_ts >= _blocked_until:
+            _cdata["recent_calls"] = []
+            _cdata["blocked_until"] = None
+
+        # Check daily limit
+        if _cdata["used"] >= _AI_DAILY_LIMIT:
+            return {"error": "ai_limit_reached"}
+
+        # Update recent calls and check RPM (>5 calls in 70s → block 60s)
+        _recent = [t for t in _cdata.get("recent_calls", []) if _now_ts - t <= 70]
+        _recent.append(_now_ts)
+        _cdata["recent_calls"] = _recent
+        if len(_recent) > 5:
+            _cdata["blocked_until"] = _now_ts + 60
+            _save_counter(_cdata)
+            return {"error": "rate_limited", "rate_limited_seconds_left": 60}
+
+        _cdata["blocked_until"] = None
+        _cdata["used"] += 1
+        _save_counter(_cdata)
+
+    # 4. Llamar a Gemini (hasta 3 intentos si hay 503)
     _payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -2892,6 +2959,22 @@ Respond ONLY with a JSON object with these exact fields:
     report["drug_name"] = drug_name_display
     report["sources"] = med["sources"] if raw else DEFAULT_SOURCES
     return report
+
+@app.get("/api/ai/counter")
+async def get_ai_counter():
+    """Devuelve los usos de IA restantes para hoy y estado del rate limit."""
+    async with _counter_lock:
+        data = _load_counter()
+        remaining = _AI_DAILY_LIMIT - data["used"]
+        now_ts = datetime.now(timezone.utc).timestamp()
+        blocked_until = data.get("blocked_until")
+        if blocked_until and now_ts < blocked_until:
+            secs_left = int(blocked_until - now_ts) + 1
+            return {"remaining": remaining, "limit": _AI_DAILY_LIMIT,
+                    "rate_limited": True, "rate_limited_seconds_left": secs_left}
+    return {"remaining": remaining, "limit": _AI_DAILY_LIMIT,
+            "rate_limited": False, "rate_limited_seconds_left": 0}
+
 
 @app.get("/api")
 async def root():
