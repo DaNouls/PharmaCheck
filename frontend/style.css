@@ -117,14 +117,24 @@ header {
   background: var(--border);
   border-radius: 2px;
 }
-.header-title {
-  font-size: 1.55rem;
+.pharmacheck-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.pharmacheck-icon {
+  height: 38px;
+  width: auto;
+  flex-shrink: 0;
+}
+.pharmacheck-text {
+  font-size: 1.45rem;
   font-weight: 800;
   letter-spacing: -0.5px;
-  background: linear-gradient(90deg, var(--blue-dark), var(--blue));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  line-height: 1;
 }
+.pc-pharma { color: #1a2d5a; }
+.pc-check  { color: #00b5a5; }
 
 /* ── HEADER BUTTONS ── */
 .header-actions {
