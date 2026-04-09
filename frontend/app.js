@@ -18,14 +18,10 @@ let currentTheme = localStorage.getItem('pharma_theme') || 'light';
 
 function applyTheme(animate = false) {
   const icon = document.querySelector('.pharmacheck-icon');
+  document.documentElement.setAttribute('data-theme', currentTheme);
   if (animate && icon) {
-    icon.style.opacity = '0';
-    setTimeout(() => {
-      document.documentElement.setAttribute('data-theme', currentTheme);
-      icon.style.opacity = '1';
-    }, 120);
-  } else {
-    document.documentElement.setAttribute('data-theme', currentTheme);
+    icon.style.opacity = '0.2';
+    setTimeout(() => { icon.style.opacity = '1'; }, 150);
   }
   const btn = document.getElementById('theme-btn');
   if (btn) btn.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
