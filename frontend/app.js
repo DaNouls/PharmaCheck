@@ -692,7 +692,7 @@ function applyLang() {
     btn.classList.toggle('active', btn.dataset.lang === currentLang);
   });
   updateActionBtn();
-  document.getElementById('ai-label').textContent = t('ai_label');
+  document.getElementById('ai-label').textContent = _counterRateLimited ? t('ai_rate_limited') : t('ai_label');
 }
 
 function setLang(lang) {
@@ -716,8 +716,10 @@ function updateActionBtn() {
 // ─────────────────────────────────────────
 
 let _rateLimitTimer = null;
+let _counterRateLimited = false;
 
 function renderAiCounter(remaining, rateLimited = false, rateLimitedSecsLeft = 0) {
+  _counterRateLimited = rateLimited;
   const limit = AI_DAILY_LIMIT;
   const pct = (remaining / limit) * 100;
 
@@ -736,7 +738,7 @@ function renderAiCounter(remaining, rateLimited = false, rateLimitedSecsLeft = 0
     if (_rateLimitTimer) clearTimeout(_rateLimitTimer);
     _rateLimitTimer = setTimeout(fetchAndRenderCounter, rateLimitedSecsLeft * 1000);
   } else {
-    document.getElementById('ai-label').textContent = t('ai_label');
+    document.getElementById('ai-label').textContent = _counterRateLimited ? t('ai_rate_limited') : t('ai_label');
     if (remaining === 0) {
       el.classList.add('empty');
       toggleBtn.classList.add('ai-disabled');
