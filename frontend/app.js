@@ -16,8 +16,17 @@ let currentLang = localStorage.getItem('pharma_lang') || 'es';
 
 let currentTheme = localStorage.getItem('pharma_theme') || 'light';
 
-function applyTheme() {
-  document.documentElement.setAttribute('data-theme', currentTheme);
+function applyTheme(animate = false) {
+  const icon = document.querySelector('.pharmacheck-icon');
+  if (animate && icon) {
+    icon.style.opacity = '0';
+    setTimeout(() => {
+      document.documentElement.setAttribute('data-theme', currentTheme);
+      icon.style.opacity = '1';
+    }, 120);
+  } else {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+  }
   const btn = document.getElementById('theme-btn');
   if (btn) btn.textContent = currentTheme === 'dark' ? '🌙' : '☀️';
 }
@@ -25,7 +34,7 @@ function applyTheme() {
 function toggleTheme() {
   currentTheme = currentTheme === 'light' ? 'dark' : 'light';
   localStorage.setItem('pharma_theme', currentTheme);
-  applyTheme();
+  applyTheme(true);
 }
 
 applyTheme();

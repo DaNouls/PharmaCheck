@@ -128,6 +128,7 @@ header {
   width: 36px;
   object-fit: contain;
   flex-shrink: 0;
+  transition: opacity 0.22s cubic-bezier(.4,0,.2,1);
 }
 .pharmacheck-text {
   font-size: 1.35rem;
@@ -139,9 +140,7 @@ header {
 .pc-pharma { color: #1a2d5a; }
 .pc-check  { color: #00b5a5; }
 
-[data-theme="dark"] .pharmacheck-icon {
-  content: url('pharmacheck-icon-dark.jpeg');
-}
+[data-theme="dark"] .pharmacheck-icon { content: url('pharmacheck-icon-dark.jpeg'); }
 [data-theme="dark"] .pc-pharma { color: #88bbee; }
 [data-theme="dark"] .pc-check  { color: #00d4c0; }
 
