@@ -718,6 +718,13 @@ function renderAiCounter(remaining) {
   el.classList.remove('low', 'empty');
   if (remaining === 0) el.classList.add('empty');
   else if (remaining <= 5) el.classList.add('low');
+
+  const toggleBtn = document.getElementById('toggle-btn');
+  if (remaining === 0) {
+    toggleBtn.classList.add('ai-disabled');
+  } else {
+    toggleBtn.classList.remove('ai-disabled');
+  }
 }
 
 async function fetchAndRenderCounter() {
@@ -1111,7 +1118,20 @@ function goToMedSheet(medName) {
 // TOGGLE MODE
 // ─────────────────────────────────────────
 
+function shakeEl(el) {
+  el.classList.remove('shake');
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add('shake');
+  el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+}
+
 function toggleMode() {
+  const toggleBtn = document.getElementById('toggle-btn');
+  if (!compatMode && toggleBtn.classList.contains('ai-disabled')) {
+    shakeEl(toggleBtn);
+    shakeEl(document.getElementById('ai-counter'));
+    return;
+  }
   compatMode = !compatMode;
   const btn = document.getElementById('toggle-btn');
   const patientWrap = document.getElementById('patient-wrap');

@@ -888,3 +888,23 @@ main {
   pointer-events: auto;
   transform: translateY(0);
 }
+
+/* ── AI limit: disabled toggle + shake ── */
+#toggle-btn.ai-disabled {
+  background: var(--gray-light);
+  border-color: var(--border);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+#toggle-btn.ai-disabled svg { opacity: 0.3; }
+
+.ai-counter.empty { border-color: var(--red); }
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+.shake { animation: shake 0.4s ease; }
