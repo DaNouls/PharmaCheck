@@ -110,21 +110,39 @@ header {
   gap: 12px;
   text-decoration: none;
 }
-.logo-svg { height: 38px; width: auto; }
+.logo-svg { height: 46px; width: auto; }
 .header-divider {
   width: 1.5px;
   height: 32px;
   background: var(--border);
   border-radius: 2px;
 }
-.header-title {
-  font-size: 1.55rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  background: linear-gradient(90deg, var(--blue-dark), var(--blue));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.pharmacheck-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
+.pharmacheck-icon {
+  height: 36px;
+  width: 36px;
+  object-fit: contain;
+  flex-shrink: 0;
+  transition: opacity 0.22s cubic-bezier(.4,0,.2,1);
+}
+.pharmacheck-text {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pc-pharma { color: #1a2d5a; }
+.pc-check  { color: #00b5a5; }
+
+[data-theme="dark"] .pharmacheck-icon { content: url('pharmacheck-icon-dark.jpeg'); }
+[data-theme="dark"] .pc-pharma { color: #88bbee; }
+[data-theme="dark"] .pc-check  { color: #00d4c0; }
 
 /* ── HEADER BUTTONS ── */
 .header-actions {
