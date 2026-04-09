@@ -128,7 +128,7 @@ header {
   width: 36px;
   object-fit: contain;
   flex-shrink: 0;
-  transition: opacity 0.22s cubic-bezier(.4,0,.2,1);
+  transition: opacity 0.3s cubic-bezier(.4,0,.2,1);
 }
 .pharmacheck-text {
   font-size: 1.35rem;
