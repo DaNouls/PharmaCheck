@@ -104,6 +104,7 @@ const i18n = {
     compat_gen_risks: 'Factores de riesgo generales identificados:',
     ai_label:         '✨ Usos IA restantes',
     ai_limit_reached: '⚠️ Límite diario de IA alcanzado. Vuelve mañana.',
+    ai_rate_limited:  '⏳ Bloqueado temporalmente — límite por minuto',
   },
   en: {
     hero_title:       'Drug Evaluation',
@@ -174,6 +175,7 @@ const i18n = {
     compat_gen_risks: 'General risk factors identified:',
     ai_label:         '✨ AI uses left',
     ai_limit_reached: '⚠️ Daily AI limit reached. Come back tomorrow.',
+    ai_rate_limited:  '⏳ Temporarily blocked — per-minute limit',
   },
   fr: {
     hero_title:       'Évaluation des médicaments',
@@ -244,6 +246,7 @@ const i18n = {
     compat_gen_risks: 'Facteurs de risque généraux identifiés :',
     ai_label:         '✨ Utilisations IA restantes',
     ai_limit_reached: '⚠️ Limite IA quotidienne atteinte. Revenez demain.',
+    ai_rate_limited:  '⏳ Temporairement bloqué — limite par minute',
   },
   it: {
     hero_title:       'Valutazione dei farmaci',
@@ -314,6 +317,7 @@ const i18n = {
     compat_gen_risks: 'Fattori di rischio generali identificati:',
     ai_label:         '✨ Usi IA rimanenti',
     ai_limit_reached: '⚠️ Limite giornaliero IA raggiunto. Torna domani.',
+    ai_rate_limited:  '⏳ Temporaneamente bloccato — limite al minuto',
   },
   de: {
     hero_title:       'Medikamentenbewertung',
@@ -384,6 +388,7 @@ const i18n = {
     compat_gen_risks: 'Allgemeine Risikofaktoren identifiziert:',
     ai_label:         '✨ KI-Anfragen übrig',
     ai_limit_reached: '⚠️ Tägliches KI-Limit erreicht. Komm morgen wieder.',
+    ai_rate_limited:  '⏳ Vorübergehend gesperrt — Minutenlimit',
   },
   ca: {
     hero_title:       'Avaluació de medicaments',
@@ -454,6 +459,7 @@ const i18n = {
     compat_gen_risks: 'Factors de risc generals identificats:',
     ai_label:         '✨ Usos IA restants',
     ai_limit_reached: '⚠️ Límit diari d\'IA assolit. Torna demà.',
+    ai_rate_limited:  '⏳ Bloquejat temporalment — límit per minut',
   },
   pt: {
     hero_title:       'Avaliação de medicamentos',
@@ -524,6 +530,7 @@ const i18n = {
     compat_gen_risks: 'Fatores de risco gerais identificados:',
     ai_label:         '✨ Usos IA restantes',
     ai_limit_reached: '⚠️ Limite diário de IA atingido. Volte amanhã.',
+    ai_rate_limited:  '⏳ Temporariamente bloqueado — limite por minuto',
   },
   no: {
     hero_title:       'Legemiddelvurdering',
@@ -594,6 +601,7 @@ const i18n = {
     compat_gen_risks: 'Generelle risikofaktorer identifisert:',
     ai_label:         '✨ KI-bruk igjen',
     ai_limit_reached: '⚠️ Daglig KI-grense nådd. Kom tilbake i morgen.',
+    ai_rate_limited:  '⏳ Midlertidig blokkert — grense per minutt',
   },
   ro: {
     hero_title:       'Evaluarea medicamentelor',
@@ -664,6 +672,7 @@ const i18n = {
     compat_gen_risks: 'Factori de risc generali identificați:',
     ai_label:         '✨ Utilizări IA rămase',
     ai_limit_reached: '⚠️ Limita zilnică IA atinsă. Reveniți mâine.',
+    ai_rate_limited:  '⏳ Blocat temporar — limită pe minut',
   },
 };
 
@@ -706,24 +715,35 @@ function updateActionBtn() {
 // AI USAGE COUNTER (server-side)
 // ─────────────────────────────────────────
 
-function renderAiCounter(remaining) {
+let _rateLimitTimer = null;
+
+function renderAiCounter(remaining, rateLimited = false, rateLimitedSecsLeft = 0) {
   const limit = AI_DAILY_LIMIT;
   const pct = (remaining / limit) * 100;
 
   document.getElementById('ai-count').textContent = remaining;
   document.getElementById('ai-bar-fill').style.width = pct + '%';
-  document.getElementById('ai-label').textContent = t('ai_label');
 
   const el = document.getElementById('ai-counter');
-  el.classList.remove('low', 'empty');
-  if (remaining === 0) el.classList.add('empty');
-  else if (remaining <= 5) el.classList.add('low');
-
   const toggleBtn = document.getElementById('toggle-btn');
-  if (remaining === 0) {
+
+  el.classList.remove('low', 'empty');
+
+  if (rateLimited) {
+    document.getElementById('ai-label').textContent = t('ai_rate_limited');
+    el.classList.add('empty');
     toggleBtn.classList.add('ai-disabled');
+    if (_rateLimitTimer) clearTimeout(_rateLimitTimer);
+    _rateLimitTimer = setTimeout(fetchAndRenderCounter, rateLimitedSecsLeft * 1000);
   } else {
-    toggleBtn.classList.remove('ai-disabled');
+    document.getElementById('ai-label').textContent = t('ai_label');
+    if (remaining === 0) {
+      el.classList.add('empty');
+      toggleBtn.classList.add('ai-disabled');
+    } else {
+      if (remaining <= 5) el.classList.add('low');
+      toggleBtn.classList.remove('ai-disabled');
+    }
   }
 }
 
@@ -732,7 +752,7 @@ async function fetchAndRenderCounter() {
     const res = await fetch(`${API_BASE}/api/ai/counter`);
     if (res.ok) {
       const data = await res.json();
-      renderAiCounter(data.remaining);
+      renderAiCounter(data.remaining, data.rate_limited, data.rate_limited_seconds_left);
     }
   } catch (_) { /* silently ignore */ }
 }
@@ -1132,6 +1152,7 @@ function toggleMode() {
     shakeEl(document.getElementById('ai-counter'));
     return;
   }
+
   compatMode = !compatMode;
   const btn = document.getElementById('toggle-btn');
   const patientWrap = document.getElementById('patient-wrap');
@@ -1192,6 +1213,8 @@ async function handleAction() {
       fetchAndRenderCounter();
       if (geminiData.error === 'ai_limit_reached') {
         html = `<div class="error-card">${t('ai_limit_reached')}</div>`;
+      } else if (geminiData.error === 'rate_limited') {
+        html = `<div class="error-card">${t('ai_rate_limited')}</div>`;
       } else {
         html = renderGeminiReport(geminiData);
       }

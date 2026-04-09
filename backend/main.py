@@ -13,7 +13,7 @@ import httpx
 from difflib import get_close_matches
 from typing import Optional, List
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,13 +37,14 @@ def _madrid_today() -> str:
 
 
 def _load_counter() -> dict:
+    default = {"date": _madrid_today(), "used": 0, "recent_calls": [], "blocked_until": None}
     try:
         data = json.loads(_COUNTER_FILE.read_text())
         if data.get("date") == _madrid_today():
-            return data
+            return {**default, **data}
     except Exception:
         pass
-    return {"date": _madrid_today(), "used": 0}
+    return default
 
 
 def _save_counter(data: dict) -> None:
@@ -2880,11 +2881,31 @@ Respond ONLY with a JSON object with these exact fields:
   "advertencia_critica": "critical contraindication or empty string"
 }"""
 
-    # 3. Verificar y decrementar contador de IA
+    # 3. Verificar límite diario y rate limit por minuto
     async with _counter_lock:
         _cdata = _load_counter()
+        _now_ts = datetime.now(timezone.utc).timestamp()
+
+        # Check rate limit block
+        _blocked_until = _cdata.get("blocked_until")
+        if _blocked_until and _now_ts < _blocked_until:
+            secs_left = int(_blocked_until - _now_ts) + 1
+            return {"error": "rate_limited", "rate_limited_seconds_left": secs_left}
+
+        # Check daily limit
         if _cdata["used"] >= _AI_DAILY_LIMIT:
             return {"error": "ai_limit_reached"}
+
+        # Update recent calls and check RPM (>5 calls in 70s → block 60s)
+        _recent = [t for t in _cdata.get("recent_calls", []) if _now_ts - t <= 70]
+        _recent.append(_now_ts)
+        _cdata["recent_calls"] = _recent
+        if len(_recent) > 5:
+            _cdata["blocked_until"] = _now_ts + 60
+            _save_counter(_cdata)
+            return {"error": "rate_limited", "rate_limited_seconds_left": 60}
+
+        _cdata["blocked_until"] = None
         _cdata["used"] += 1
         _save_counter(_cdata)
 
@@ -2936,11 +2957,18 @@ Respond ONLY with a JSON object with these exact fields:
 
 @app.get("/api/ai/counter")
 async def get_ai_counter():
-    """Devuelve los usos de IA restantes para hoy (hora Madrid)."""
+    """Devuelve los usos de IA restantes para hoy y estado del rate limit."""
     async with _counter_lock:
         data = _load_counter()
         remaining = _AI_DAILY_LIMIT - data["used"]
-    return {"remaining": remaining, "limit": _AI_DAILY_LIMIT}
+        now_ts = datetime.now(timezone.utc).timestamp()
+        blocked_until = data.get("blocked_until")
+        if blocked_until and now_ts < blocked_until:
+            secs_left = int(blocked_until - now_ts) + 1
+            return {"remaining": remaining, "limit": _AI_DAILY_LIMIT,
+                    "rate_limited": True, "rate_limited_seconds_left": secs_left}
+    return {"remaining": remaining, "limit": _AI_DAILY_LIMIT,
+            "rate_limited": False, "rate_limited_seconds_left": 0}
 
 
 @app.get("/api")
