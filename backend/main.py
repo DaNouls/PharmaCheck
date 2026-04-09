@@ -2892,6 +2892,11 @@ Respond ONLY with a JSON object with these exact fields:
             secs_left = int(_blocked_until - _now_ts) + 1
             return {"error": "rate_limited", "rate_limited_seconds_left": secs_left}
 
+        # Block just expired — clear slate so old timestamps don't re-trigger immediately
+        if _blocked_until and _now_ts >= _blocked_until:
+            _cdata["recent_calls"] = []
+            _cdata["blocked_until"] = None
+
         # Check daily limit
         if _cdata["used"] >= _AI_DAILY_LIMIT:
             return {"error": "ai_limit_reached"}
