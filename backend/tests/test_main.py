@@ -5,6 +5,9 @@ Run with:  pytest backend/tests/ -v
 
 import sys
 import os
+import re
+import json
+import time
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
@@ -29,6 +32,9 @@ from backend.main import (
         _cache_set,
         _translate_fields_parallel,
         _fetch_cima_full,
+        _madrid_today,
+        _load_counter,
+        _save_counter,
     )
 
 
@@ -706,3 +712,83 @@ class TestCimaParallel:
         mock_cima_full.assert_called_once()
         drug = resp.json()["drug"]
         assert "dolor" in drug["uses"].lower()
+
+
+# ─────────────────────────────────────────
+# AI USAGE COUNTER — unit tests
+# ─────────────────────────────────────────
+
+class TestAiCounterUnit:
+
+    def test_madrid_today_is_valid_date_format(self):
+        """_madrid_today devuelve YYYY-MM-DD."""
+        today = _madrid_today()
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", today)
+
+    def test_load_counter_defaults_when_no_file(self, tmp_path):
+        """Sin archivo, _load_counter devuelve used=0 y campos por defecto."""
+        with patch.object(main_module, "_COUNTER_FILE", tmp_path / "nonexistent.json"):
+            data = _load_counter()
+        assert data["used"] == 0
+        assert data["recent_calls"] == []
+        assert data["blocked_until"] is None
+        assert data["date"] == _madrid_today()
+
+    def test_load_counter_returns_stored_data_same_day(self, tmp_path):
+        """Con archivo de hoy, _load_counter devuelve el used guardado."""
+        counter_file = tmp_path / "ai_counter.json"
+        stored = {"date": _madrid_today(), "used": 7, "recent_calls": [], "blocked_until": None}
+        counter_file.write_text(json.dumps(stored))
+        with patch.object(main_module, "_COUNTER_FILE", counter_file):
+            data = _load_counter()
+        assert data["used"] == 7
+
+    def test_load_counter_resets_on_new_day(self, tmp_path):
+        """Con fecha distinta en el archivo, _load_counter resetea a used=0."""
+        counter_file = tmp_path / "ai_counter.json"
+        stored = {"date": "2020-01-01", "used": 18, "recent_calls": [], "blocked_until": None}
+        counter_file.write_text(json.dumps(stored))
+        with patch.object(main_module, "_COUNTER_FILE", counter_file):
+            data = _load_counter()
+        assert data["used"] == 0
+        assert data["date"] == _madrid_today()
+
+    def test_load_counter_adds_missing_keys(self, tmp_path):
+        """Un archivo antiguo sin recent_calls/blocked_until recibe los valores por defecto."""
+        counter_file = tmp_path / "ai_counter.json"
+        # Formato antiguo sin los nuevos campos
+        old_format = {"date": _madrid_today(), "used": 3}
+        counter_file.write_text(json.dumps(old_format))
+        with patch.object(main_module, "_COUNTER_FILE", counter_file):
+            data = _load_counter()
+        assert "recent_calls" in data
+        assert "blocked_until" in data
+        assert data["used"] == 3
+
+    def test_save_counter_creates_file_with_correct_data(self, tmp_path):
+        """_save_counter escribe el JSON correctamente y crea el directorio si no existe."""
+        counter_file = tmp_path / "data" / "ai_counter.json"
+        payload = {"date": _madrid_today(), "used": 5, "recent_calls": [], "blocked_until": None}
+        with patch.object(main_module, "_COUNTER_FILE", counter_file):
+            _save_counter(payload)
+        assert counter_file.exists()
+        saved = json.loads(counter_file.read_text())
+        assert saved["used"] == 5
+        assert saved["date"] == _madrid_today()
+
+    def test_save_and_load_roundtrip(self, tmp_path):
+        """_save_counter + _load_counter preservan todos los campos."""
+        counter_file = tmp_path / "ai_counter.json"
+        now_ts = time.time()
+        payload = {
+            "date": _madrid_today(),
+            "used": 11,
+            "recent_calls": [now_ts - 10, now_ts - 5],
+            "blocked_until": now_ts + 50,
+        }
+        with patch.object(main_module, "_COUNTER_FILE", counter_file):
+            _save_counter(payload)
+            loaded = _load_counter()
+        assert loaded["used"] == 11
+        assert len(loaded["recent_calls"]) == 2
+        assert loaded["blocked_until"] is not None
